@@ -165,6 +165,7 @@ def test_directory_listing_hides_private_entries(project):
 
 
 def test_test_execution_confirms_once_after_preflight(project, monkeypatch):
+    monkeypatch.setattr(sandbox.shutil, "which", lambda name: sys.executable if name == "bwrap" else None)
     (project / "test_example.py").write_text("def test_example(): pass\n")
     runner = Mock(return_value={"exit_code": 0, "output": "passed", "timed_out": False, "output_limit_exceeded": False})
     monkeypatch.setattr(sandbox, "collect_output", runner)

@@ -35,7 +35,8 @@ def test_invalid_url_never_starts_browser():
     client._start.assert_not_called()
 
 
-def test_screenshot_directory_is_bound_to_workspace_and_runtime_is_private(tmp_path):
+def test_screenshot_directory_is_bound_to_workspace_and_runtime_is_private(tmp_path, monkeypatch):
+    monkeypatch.setitem(mcp_client.mcp_config, 'browser', {**mcp_client.mcp_config['browser'], 'command': sys.executable})
     with use_workspace(tmp_path):
         spec = mcp_client.prepare_server_connection('browser')
         assert spec['ok']
