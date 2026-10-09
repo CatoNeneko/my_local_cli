@@ -6,7 +6,7 @@
 
 ## 环境与启动
 
-已验证环境为 WSL Ubuntu、Python 3.12、Miniforge/Mamba 项目环境。MCP SDK 固定为 `mcp==1.30.0`，增强输入使用 `prompt-toolkit==3.0.53`。
+本机环境为 WSL Ubuntu、Python 3.12、Miniforge/Mamba 项目环境。MCP SDK 固定为 `mcp==1.30.0`，增强输入使用 `prompt-toolkit==3.0.53`。
 
 ```bash
 cd /path/to/local-ai-cli
