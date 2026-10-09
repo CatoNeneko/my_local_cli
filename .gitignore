@@ -1,0 +1,30 @@
+# Python / local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.conda-env/
+.venv/
+.venv.windows/
+.idea/
+# Credentials and local assistant configuration
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+.agents/
+*.pem
+*.key
+# Conversations, audit and generated evidence
+.ai-cli/
+sessions/
+*.jsonl
+history.json
+artifacts/
+*.log
+# Packaging output
+*.zip
+
+# Dedicated browser binaries and private screenshots
+.browser-runtime/
+.browser-artifacts/

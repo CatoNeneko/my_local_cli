@@ -1,0 +1,17 @@
+import pytest
+
+from discount import apply_discount
+
+
+@pytest.mark.parametrize('price,percent,expected', [
+    (100, 0, 100), (100, 100, 0), (100, 20, 80),
+    (99.99, 12.5, 87.49125), (0, 50, 0),
+])
+def test_valid_values(price, percent, expected):
+    assert apply_discount(price, percent) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize('price,percent', [(-1, 20), (10, -1), (10, 101)])
+def test_invalid_values(price, percent):
+    with pytest.raises(ValueError):
+        apply_discount(price, percent)

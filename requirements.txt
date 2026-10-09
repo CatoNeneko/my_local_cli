@@ -1,0 +1,5 @@
+mcp==1.30.0
+prompt-toolkit==3.0.53
+jsonschema==4.26.0
+pytest==9.1.1
+playwright==1.63.0

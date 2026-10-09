@@ -1,0 +1,11 @@
+import pytest
+
+from discount import apply_discount
+
+
+def test_normal_discount():
+    assert apply_discount(100, 20) == 80
+
+
+def test_decimal_discount():
+    assert apply_discount(99.99, 12.5) == pytest.approx(87.49125)

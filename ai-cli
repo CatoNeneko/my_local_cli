@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 仓库内入口：无论从哪里调用，均使用本项目的 Python 环境。
+task_entry="$(readlink -f -- "$0")"
+task_root="$(cd -- "$(dirname -- "$task_entry")" && pwd)"
+exec "$task_root/.conda-env/bin/python" "$task_root/cli.py" "$@"
