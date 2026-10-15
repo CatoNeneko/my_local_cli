@@ -1,4 +1,5 @@
 """可信本地 Hook：执行前可拒绝，执行后失败只附加警告，不伪装回滚。"""
+
 from copy import deepcopy
 
 from config import hooks_config
@@ -22,7 +23,7 @@ def report_write_result(context):
 
 HOOK_HANDLERS = {
     "deny_configured_tools": deny_configured_tools,
-    "report_write_result": report_write_result
+    "report_write_result": report_write_result,
 }
 
 
@@ -39,7 +40,10 @@ def run_hooks(event, context):
             if not isinstance(result, dict) or type(result.get("ok")) is not bool:
                 raise ValueError("Hook 返回格式无效")
             if not result["ok"]:
-                return {"ok": False, "error": "Hook " + name + ": " + str(result.get("error", "拒绝"))}
+                return {
+                    "ok": False,
+                    "error": "Hook " + name + ": " + str(result.get("error", "拒绝")),
+                }
         except Exception as error:
             return {"ok": False, "error": "Hook " + str(name) + " 失败: " + type(error).__name__}
     return {"ok": True}

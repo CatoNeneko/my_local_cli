@@ -1,312 +1,190 @@
-# Local AI CLI
+# Local AI Harness
 
-一个开发中的 Python 终端 AI 编程助手。支持 Ollama 与 OpenAI 兼容 Chat Completions API，支持模型调用工具、审查文件修改、沙箱测试、独立会话及 MCP 扩展。重点是实现并理解编程助手的执行流程。
+**带 CLI 与本地 Web 工作台的 AI 编程助手执行框架。**
 
-这是开发中的交互式 CLI：支持用户级 `ai-cli` 命令、指定工作目录、命令与路径候选、多行编辑、文件模糊搜索和多选、权限选择面板，以及取消生成或工具任务后继续输入。它仍未覆盖完整的 Codex / Claude Code 功能集。
+中文 · [English](README.en.md)
 
-## 环境与启动
+Local AI Harness 将模型接入、工具调用、代码修改审阅、沙箱验证和任务管理串成可追踪的开发流程。模型负责提出操作，客户端负责校验、授权、执行和保存结果。
 
-本机环境为 WSL Ubuntu、Python 3.12、Miniforge/Mamba 项目环境。MCP SDK 固定为 `mcp==1.30.0`，增强输入使用 `prompt-toolkit==3.0.53`。
+当前版本：**0.2.0**。主要验证环境为 **Linux / WSL、Python 3.12**。
 
-```bash
-cd /path/to/local-ai-cli
-# 首次创建环境；已存在 .conda-env 时不必重复创建。
-mamba env create --prefix ./.conda-env --file environment.yml
-./ai-cli
-```
+## 核心能力
 
-本机已将 `ai-cli` 链接安装到 `~/.local/bin`，已有 Bash 配置会将该目录加入 PATH。打开新的 WSL 终端即可在任意项目目录启动；已有终端也可执行 `export PATH="$HOME/.local/bin:$PATH"`。其他机器可在创建项目环境后建立同样的链接，不要覆盖已有同名命令：
-
-```bash
-mkdir -p ~/.local/bin
-ln -s "$(pwd)/ai-cli" ~/.local/bin/ai-cli
-```
-
-启动入口支持：
-
-```bash
-./ai-cli --help
-./ai-cli --session work --model qwen3.8-27b-mtp:latest
-./ai-cli --base-url http://localhost:11434 --no-mcp
-./ai-cli --plain
-ai-cli -C /path/to/project --session work
-```
-
-`-C` / `--workspace` 指定工作目录，默认调用命令时的当前目录，目录必须已经存在。文件工具、AGENTS.md、Skills、会话、审计和沙箱测试使用该项目；助手自身的 Python 环境和可信配置仍属于安装目录。`script.py` 保留原兼容入口，推荐使用 `ai-cli`。
-
-`--session` 切换或创建会话；`--no-mcp` 禁用本次运行的 MCP 启动与刷新；`--plain` 使用普通输入。`--help` 不启动模型请求或 MCP 服务。
-
-模型服务必须可访问。在 `config.py` 中修改 `model_config.base_url` 和 `model_config.model`，匹配实际 Ollama 服务与已安装模型。本机当前配置为 `http://localhost:11434` 和 `qwen3.8-27b-mtp:latest`，不是其他机器的通用默认值。
-
-Linux 沙箱测试还需要系统级 `bubblewrap`（命令 `bwrap`），并且运行环境允许相应 namespace 操作。Python 包安装在项目环境；`bubblewrap` 是系统程序。沙箱不可用时测试工具会拒绝执行，不会退回宿主执行。
-
-启动后读取选定项目根目录的 `AGENTS.md`，并按助手安装目录 `config.py` 中的可信 `mcp_config` 启动 MCP 服务。默认 demo 和 browser 的解释器、服务脚本与工作目录均属于助手安装目录，不会在外部项目寻找 demo 脚本；MCP 的执行权限不因选择项目而自动受项目边界约束。启动外部服务需要确认；拒绝或连接失败后仍可继续使用内置工具。没有 MCP 服务需求时可将 `mcp_config` 配为 `{}`。
-
-## 使用
-
-日常任务可以直接输入自然语言，例如：
-
-```text
-搜索项目中 run_agent 的定义和调用位置，读取相关文件并解释流程，先不要修改。
-```
-
-模型从工具声明中选择工具，客户端验证参数和权限后执行，再把结果交给模型。实际是否正确选择工具仍取决于模型。
-
-| 命令 | 用途 |
-| --- | --- |
-| `/help` | 查看命令与输入操作 |
-| `/exit` | 关闭 MCP 连接并退出 |
-| `/history` | 查看当前会话的完整历史 |
-| `/clear` | 清空当前会话的磁盘和内存历史，保留项目规则及本会话已启用 Skill |
-| `/save` | 将当前会话导出为 JSON；聊天本身已自动追加保存 |
-| `/sessions` | 列出会话 |
-| `/session <名称>` | 切换或创建会话，重启后可再次切换恢复 |
-| `/session rename <新名称>` | 重命名当前会话，拒绝覆盖已有会话 |
-| `/context` | 查看下一次请求的字符预算和保留轮次 |
-| `/model`、`/model <名称>` | 查看或切换模型 |
-| `/stream`、`/stream on`、`/stream off` | 查看或切换工具循环的文字输出模式 |
-| `/read <路径>` | 查看 UTF-8 文件 |
-| `/attach <路径>` | 把单个 UTF-8 文件加入当前聊天，与多选附件共用验证入口 |
-| `/files` | 模糊搜索项目文件，Tab 多选，Enter 整批添加附件 |
-| `/browse` | 逐层浏览目录并添加单个文件，Esc 取消 |
-| `/search <文件> <关键词>` | 搜索单文件中的字面关键词 |
-| `/grep <目录> <关键词>` | 递归搜索项目，例如 `/grep . run_agent` |
-| `/instructions` | 查看启动时加载的 AGENTS.md；修改规则后需重启 |
-| `/skills` | 查看项目内 Skill 及启用状态 |
-| `/skill <名称>`、`/skill clear` | 按需启用或停用 Skill |
-| `/skill generate <名称> <用途>` | 模型生成草稿，展示 diff、确认后新建 SKILL.md，不覆盖、不自动启用 |
-| `/browser open/read/click/fill/wait/screenshot/close` | 基础无头浏览器，详见 [浏览器说明](docs/BROWSER.md) |
-| `/mcp tools`、`/mcp refresh` | 查看注册工具，刷新工具声明或重新连接已断开的服务 |
-
-增强输入支持 Enter 发送、Alt+Enter 换行。命令和路径候选自动出现，也可按 Tab 调出；候选出现时上/下键选择、Enter 接受，再按 Enter 发送。没有候选时上/下键浏览本次运行的输入历史（多行输入中先移动光标）。底部显示会话、模型和流式状态；输入历史不单独写入磁盘。非交互终端或 `--plain` 使用普通输入。
-
-`/read`、`/attach`、`/search`、`/grep` 的第一个参数支持项目内路径补全；带空格的文件名自动加引号。例如 `/search "src/a file.py" hello world`。引号和转义使用 POSIX 规则，Windows 路径请使用 WSL 的 `/mnt/c/...` 格式，但访问仍限于项目根目录。
-
-`/files` 递归索引项目文件，输入文件名或路径片段模糊筛选（例如 `mdl` 可匹配 `model.py`）。多个词分别匹配路径，不区分大小写；它搜索文件名，不搜索正文。↑/↓ 移动，PageUp/PageDown 翻页，Tab 勾选或取消，Enter 添加已勾选文件；没有勾选时添加当前高亮项。切换筛选词会保留勾选，Esc / Ctrl+C 取消面板。
-
-最多勾选 10 个附件，一批文件内容连同名称最多 32 KiB。所有文件成功读取并检查后才保存为一条完整用户消息，失败不追加部分附件。附件仍可能与项目规则或较长的新任务一起超出模型上下文预算。
-
-文件索引最多 5000 个文件、20000 个目录项，扫描约 2 秒，超限会提示索引不完整。它跳过私有路径、符号链接和常见依赖/构建目录，不解析 `.gitignore`。普通模式输入逗号分隔编号多选，用 `/关键词` 筛选；每次最多列出 200 个匹配。
-
-`/browse` 保留原目录导航：Enter 进入目录，`../` 返回上级，选中文件后作为单个附件添加。逐层候选扫描最多 1000 个目录项、展示 200 个候选；达到限制提示。文件选中后都会经过工具执行入口再次验证并读取。
-
-普通 `read_file` 工具最多读取 1 MiB UTF-8 内容；超限拒绝，建议使用项目搜索。
-
-增强终端的权限面板默认选中“拒绝”；可用上下键选“允许”再 Enter，也可按 y/n，Esc 或 Ctrl+C 只拒绝此次确认。普通模式继续使用 `[y/N]`。实际执行仍经过权限与路径复查。
-
-空闲时 Ctrl+C 或 Ctrl+D 退出；聊天生成或 Skill 生成时 Ctrl+C 取消并返回输入。生成失败或中断时，不保存未完成的模型回复。增强文件面板中 Ctrl+C 只取消选择。
-
-工具执行中 Ctrl+C 取消当前任务并返回输入：pytest 终止子进程组并回收进程；MCP 取消连接任务并通过 SDK 关闭该服务，移除其工具声明，可用 `/mcp refresh` 重连。同批尚未执行的工具补记为取消并停止执行，历史保持完整调用链。读取、写入或可信 Hook 中的中断也会记录取消结果；已经完成的操作不会回滚。尤其在写入提交边界或外部服务中，取消不代表动作一定未发生，应核实实际状态。
-
-普通模式权限确认时 Ctrl+C 会停止当前工具任务；增强模式 Ctrl+C 仅拒绝该次确认。连续再次中断或退出清理期间的中断不保证仍停留在输入界面。
-
-其他斜杠命令仍使用简单的空白分割。会话名使用 1～64 位字母、数字、下划线或连字符，`rename` 是保留名称。
-
-## 新建代码文件
-
-直接告诉模型“新建 examples/add.py，实现一个加法函数，并新增相应测试”。模型可调用 `create_file`，提供路径和完整 UTF-8 内容，客户端展示 diff，并按审批模式授权后创建文件和缺失的父目录。每个文件独立审查；拒绝时不会创建父目录。
-
-已有文件、私有路径、项目外路径和带符号链接的新建路径会拒绝；单个新文件最多 1 MiB，允许空文件。保存使用临时文件和独占发布，遇到并发创建时拒绝覆盖。新文件默认继承临时文件的私有权限，暂不支持设置可执行位。创建失败可能留下已批准创建的空目录；路径复查仍不是针对恶意并发目录替换的完整文件系统隔离。
-
-## 项目级搜索
-
-模型工具 `search_project` 接受 `keyword`，可选 `path`（默认 `.`）和 `glob`（默认 `*`，如 `*.py`）。关键词是区分大小写的字面文本，不是正则表达式。
-
-搜索返回项目相对路径、行号和文字片段。它跳过受保护目录、符号链接、常见依赖/构建目录、非 UTF-8 或含空字符的文件以及超限文件。长行返回有限片段并标记截断。
-
-默认限制：500 个候选文件、单文件约 1 MiB、总读取约 8 MiB、100 个匹配行、匹配结果约 16000 字符、搜索约 3 秒。限制使用小量额外字节探测是否超限。达到限制会返回部分结果与原因；跳过计数和读取警告表示搜索不保证覆盖所有项目内容。当前不解析 `.gitignore`，不支持正则或语义搜索。
-
-## 架构与数据
-
-```text
-cli.py → script.py → agent.py → model_client.py → Ollama / 兼容 API
-                ↓ 模型提出工具调用
-         tool_registry.py（参数、权限类型、实现）
-                ↓
-         tool_runtime.py（校验、Hooks、授权、执行、日志）
-           ├─ file_tools.py / project_search.py
-           ├─ patches.py / new_files.py / skill_files.py
-           ├─ sandbox.py
-           └─ mcp_manager.py → 常驻 MCP 服务
-```
-
-- `terminal_input.py`、`command_help.py`：终端编辑、状态提示，以及帮助与补全共用的命令说明。
-- `path_input.py`、`terminal_dialog.py`：引号路径解析、受保护候选过滤和方向键选择面板。
-- `file_catalog.py`、`file_picker.py`、`attachments.py`：文件索引、模糊排序、多选交互及整批附件验证与保存。
-- `workspace.py`：绑定本次运行的项目路径，并把项目状态与助手安装目录分开。
-- `tool_display.py`：统一显示工具开始、成功或失败、目标与结果摘要；修改显示增删行数和完整 diff。交互终端使用颜色，重定向输出使用纯文本。摘要不打印整份文件或任意 MCP 参数，不改变交给模型的工具结果。
-- `history.py`、`sessions.py`：JSONL 历史追加、恢复、独立会话及重命名。
-- `project_instructions.py`、`skills.py`：项目规则与按需 Skill 上下文，独立于聊天历史。
-- `compaction.py`：自动/手动摘要、追加式检查点、前缀校验和故障降级。
-- `context_window.py`：保留完整近期用户轮次及其工具链，按请求字符预算省略旧轮次，磁盘历史保持完整。支持旧轮次摘要及检查点恢复，尚无精确 token 计数。
-- `approval.py`、`agent_proposals.py`：硬规则、独立审查上下文、审批审计，以及子代理修改建议的暂存与应用。
-- `api_adapter.py`：兼容 API 消息转换、调用 ID 和 SSE 工具参数拼接。
-- `process_tasks.py`、`subagent_worker.py`：有界任务池、沙箱 PTY 与独立只读子代理。
-- `streaming.py`、`console_output.py`：收集 Ollama NDJSON；文字即时显示，收到完整结束标记后才允许执行工具，避免重复显示最终回复。
-- `hooks.py`：可信本地 Python 回调；执行前可拒绝，执行后失败附加警告，不伪装成已回滚。
-
-在助手源码目录运行时，兼容原来的根目录 `history.jsonl` 和 `sessions/<名称>.jsonl`；外部项目使用该项目的 `.ai-cli/history.jsonl`、`.ai-cli/sessions/<名称>.jsonl` 和 `.ai-cli/tool_events.jsonl`。不同项目的会话历史互不混用，`.ai-cli` 对模型文件工具屏蔽；项目状态路径指向符号链接时拒绝启动。每次启动默认进入 `default`，可用 `--session` 指定会话。Skill 状态在当前进程内按会话恢复，重启后需重新启用；MCP 连接和模型设置是整个 CLI 共享状态。
-
-`/save` 的导出文件是独立快照，不随重命名移动。工具审计写入 `tool_events.jsonl`，只记录工具名称、时间、成功/错误、取消标记和 Hook 警告，不保存参数或文件内容；聊天历史本身会包含消息和工具结果。
-
-## 权限与隔离边界
-
-项目内置读取、搜索、列目录无需逐次确认，但仍检查项目根目录及受保护路径。修改已有文件、新建普通文件和新建 Skill 要先展示 diff，再按审批模式授权；控制文件和 Skill 保留人工确认。已有文件修改会检查审查期间内容是否变化；当前是完整文件替换，尚无通用多文件补丁工具。
-
-工具状态、diff 和授权提示中的控制字符会转义显示，防止这些文字操纵终端。diff 不截断；测试输出只展示有限摘要，工具结果和历史仍保留工具返回的原始内容。此显示处理不是通用提示注入检测，也尚未覆盖所有模型文字和手动文件显示。
-
-`run_tests` 在 bubblewrap 中用固定 pytest 命令执行：项目只读、禁网、临时目录可写，遮蔽环境与私有记录，并限制时间和输出。它不是虚拟机，仍共享内核，尚无 cgroup 内存/进程数量配额或完整 seccomp 策略。其他工具不因此自动获得沙箱隔离。
-
-MCP 目前支持 stdio 工具发现和调用、进程复用、刷新及退出清理；外部服务以当前用户权限运行，尚未沙箱化。只支持文字与结构化 JSON 工具结果；不支持 HTTP MCP、resources、prompts 或需要外部交互的完整协议能力。
-
-AGENTS.md 和 Skills 是模型说明，不是权限控制。Hook 是可信本地代码，不是隔离执行环境。外部文件与工具返回仍有提示注入风险，当前未实现通用检测；实际动作必须经过客户端执行层。
-
-## 验证与演示
-
-普通测试无需调用真实模型：
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 .conda-env/bin/python -m pytest -q -p no:cacheprovider tests
-```
-
-在允许子进程及 namespace 的 WSL 宿主环境开启真实终端输入、MCP 和沙箱测试：
-
-```bash
-CLI_BROWSER_INTEGRATION=1 CLI_MCP_INTEGRATION=1 CLI_SANDBOX_INTEGRATION=1 CLI_TERMINAL_INTEGRATION=1 CLI_HOST_SECRET=test-only \
-PYTHONDONTWRITEBYTECODE=1 .conda-env/bin/python -m pytest -q -p no:cacheprovider tests
-```
-
-测试覆盖输入按键、模糊多选及跨筛选勾选、整批附件验证、路径补全、引号解析、启动参数、跨项目状态隔离、生成与工具取消后的继续输入、真实 SIGINT 进程清理、MCP 取消后重连、工具权限、修改冲突、新建文件拒绝与并发冲突、Hook 语义、Skill 生成保存、历史恢复、上下文完整工具链、流式中断和沙箱限制。模型响应多数使用模拟，测试通过不等于所有模型都能正确完成任务。
-
-已完成一轮真实模型端到端验收：修改前 2 failed → 修复并新增测试 → 8 passed；固定测试未改变，独立的 8 个验证用例通过，关闭并重新启动 CLI 后会话恢复正确。真实模型调用 MCP 服务得到 42，越界和私有记录读取被拒绝。它是一轮固定任务通过记录，不代表所有模型和项目都通过。步骤和完整证据见 [真实模型验收与演示](docs/ACCEPTANCE.md)。
-
-建议演示：独立项目 → 自然语言读取 → 观察真实测试失败 → 展示修改和新文件 diff → 沙箱测试通过 → 重启恢复 → MCP 调用。增强文件选择、拒绝权限、Skill 启用与 Hook 拒绝可以分别展示。
-
-## 后续工作
-
-1. 终端交互：测试输出展开、更多交互审查，以及自然语言中的文件引用。
-2. 配置管理：项目/用户配置合并，项目专属测试依赖环境选择。当前沙箱使用助手环境，外部项目额外依赖尚不会自动安装。
-3. 通用补丁、多文件修改，以及更多真实项目的测试反馈验收。
-4. 精确 token 预算、摘要质量评估、Skills 元数据/自动选择、外部 Hook 和 MCP 隔离。
-5. 多文件建议的原子提交、持久任务调度与跨 CLI 进程恢复；当前提供子代理建议审批和进程内 PTY 任务。
-
-
-## API、子代理和 PTY
-
-使用 OpenAI 兼容 Chat Completions 接口（不含 Responses 或 Anthropic 原生协议）：
-
-```bash
-# 先在终端设置 OPENAI_API_KEY；密钥不作为命令行参数，也不写入配置或会话。
-ai-cli --provider openai --base-url https://你的服务地址/v1 --model 你的模型 -C /你的项目
-```
-
-可用 `--api-key-env MY_API_KEY` 指定另一环境变量。无密钥也允许访问本地兼容服务。
-流式解析使用 SSE，拼接工具参数并验证完整 JSON 与完成标记后才执行；支持工具调用 ID 和旧 Ollama 历史转换。
-认证请求拒绝重定向；HTTP 错误只显示状态码。服务必须支持工具调用才可执行完整工具循环。
-Ollama 原模式仍为默认；更换协议或模型时建议新建会话，避免不同模型依赖的历史细节。
-
-```text
-/agent 读取代码并分析权限边界
-/agent 搜索所有测试入口并总结覆盖情况
-/tasks
-/task <任务ID>
-/pty python -u -c "print(input('姓名: '))"
-/send <任务ID> 小明
-/cancel <任务ID>
-```
-
-主模型也可调用 `spawn_agent`、`start_pty`、`task_status`、`task_wait`、`task_input`、`task_cancel`。
-子代理使用独立 Python 进程、配置快照和消息列表，注册四种只读工具和两个暂存建议工具；没有父会话、MCP、直接写入或再次派生代理的权限。
-`path` 是关注位置，读取权限覆盖当前项目。子代理结果需要主代理审查；不能将其中的建议视为已经执行。
-子代理不是操作系统沙箱中的模型进程：其可信客户端必须联网请求模型，文件工具仍受统一路径规则控制。
-
-PTY 提供真正的终端输入输出与控制终端，命令以 argv 执行；只有用户明确启动 shell 时才在沙箱内运行 shell。
-项目和运行时只读、禁网、清空环境并遮蔽私有记录；工作目录必须位于项目内。可写临时文件位于沙箱 `/tmp`，退出后消失。
-任务启动、发送输入与取消经过共享审批、Hooks 和审计；auto 模式按规则放行本进程的沙箱任务，manual 模式确认；查询无需确认。
-PTY 默认 120 秒，模型可指定 1–300 秒；子代理 180 秒、最多 8 轮/12 次工具调用。
-同时最多 4 个任务，本 CLI 累计最多 64 个；每个任务最多收集 64 KiB 输出，查询按 16,000 字节分页（`next_offset`）。
-超时、超输出、取消或退出 CLI 会清理进程组。CLI 内可切换会话查看同一任务池；不持久化任务、不提供定时调度或跨进程恢复。
-运行时间与输出有界，目前没有独立 CPU/内存配额；bubblewrap 共享宿主内核。
-
-验证：已通过本机 Ollama `/v1/chat/completions` 的流式/非流式真实请求，以及两个并发子代理分别读取、列举临时项目文件；
-真实沙箱测试覆盖 PTY 输入、控制终端、Ctrl+C、只读保护、环境隔离、超时、取消和输出上限。
-外部收费 API 未提供凭据，尚未实测；不能据此声称所有兼容服务都已验证。
-
-兼容接口参考：[Ollama 官方兼容 API 文档](https://docs.ollama.com/api/openai-compatibility)。
-
-
-## 自动审批与子代理修改建议
-
-`ai-cli` 默认 `--approval-mode auto`；使用 `ai-cli --approval-mode manual` 保留逐次人工确认。运行中可用 `/approval auto`、`/approval manual` 切换，`/approval` 查看当前模式；此设置没有模型工具入口。
-直接运行 `script.py` 或调用 Python 工具 API 时，默认使用 `config.py` 的 manual 配置。
-
-| 请求 | auto 模式 |
+| 模块 | 实现内容 |
 |---|---|
-| 项目内读取、搜索、查询任务 | 硬规则检查后允许 |
-| 已完成准备检查的 pytest / PTY 沙箱执行 | 自动允许，只读、禁网，不回退宿主 |
-| 启动只读子代理，向本进程沙箱 PTY 输入或取消任务 | 按规则允许 |
-| 普通文件修改、新建 | 展示 diff；独立上下文审查通过后执行 |
-| AGENTS.md、Skills、配置、隐藏路径、规模较大的修改 | 人工确认 |
-| MCP 服务启动与工具调用 | 人工确认；外部服务没有沙箱保障 |
-| 项目外、私有记录、改写助手自身 Python 代码或运行环境 | 硬性拒绝，审查模型不能解除 |
+| CLI 与 Web | 终端补全、文件选择与附件；Web 会话、SSE 流式事件、Markdown、代码复制、审批和任务面板 |
+| 模型协议 | OpenAI 兼容 Chat Completions；流式工具参数组装、完整响应验证、内部消息规范化与推理内容字段保留；保留 Ollama 协议适配 |
+| 统一工具 Runtime | 工具注册、JSON Schema 参数校验、路径边界、审批、Hooks、结构化结果和审计 |
+| 文件修改 | 文件读取与代码搜索；精确文字替换、多文件合并 diff、冲突检查、单文件原子替换与批量失败补偿 |
+| 沙箱与 PTY | Bubblewrap 只读项目、禁网执行；PTY 交互、输出采集、超时、资源限制和进程组清理 |
+| 可写子代理 | 独立进程与任务上下文；经统一 Runtime 修改、新建、测试和使用 PTY；独立审批与结果回传 |
+| 会话与上下文 | 多会话历史、完整工具链裁剪、自动/手动摘要；Web 检查点、审批暂停与恢复、已完成工具去重 |
+| RAG 与长期记忆 | 基于 LangChain 组件分块、增量索引与混合检索；Web 提供按工作区保存、可编辑的显式长期记忆 |
+| 扩展机制 | stdio MCP 工具发现与调用、AGENTS.md、Skills、Skill 草稿生成和可信本地 Hooks |
+| Git 与诊断 | Web 工作区快照、diff、带冲突检查的单文件恢复；结构化错误诊断和离线环境检查 |
 
-独立审查器使用当前模型，但与主代理分离上下文；请求不含聊天历史、项目规则或工具声明。
-只发送原始用户任务、目标路径和完整 diff，严格要求 JSON 决策及固定原因代码。
-审查请求读取超时（默认 20 秒，指网络等待，不是整个流程的总耗时）、格式错误或证据不足转人工；明确 deny 拒绝本次写入。
-自动审查限普通文本文件、新内容 16000 字节、diff 12000 字符、约 200 行变更；任务最多 8000 字符。
-提交前再次校验路径与原文件内容。决策方法、原因代码和请求摘要 SHA-256 写入工具审计，不保存 diff。
-审查模型不能调用工具、修改规则、批准项目外访问或自己执行写入；模型审查不是正确性证明或可靠的提示注入防御。
+默认检索使用**词项特征哈希向量与关键词匹配**。远程语义 Embedding 需要显式配置，尚未完成真实服务联测。
 
-子代理需要修改时调用 `propose_edit` / `propose_file`，最多暂存 3 个文件、合计 16000 字节，不直接写入。
-主代理通过 `task_wait` / `task_status` 获得建议 ID，再调用 `apply_agent_proposal` 申请应用。
-也可手动使用 `/apply <任务ID> <建议ID>`。应用时重新走主代理同一审批入口，使用启动时保存的原始用户任务。
-建议提出后文件变化会拒绝，成功应用的建议不能重复执行；多个文件逐个提交，暂不提供整批原子回滚。
+## 一次开发任务如何执行
 
-真实模型验证：失败测试 → 子代理读取并提出建议 → 独立审查自动批准 → 写入 → 测试通过，固定测试未修改，无人工确认。
-本机完整回归 **332 项通过**，随后补充的浏览器测试独立运行 **20 项通过**，覆盖审查故障降级、拒绝、审批参数伪造、硬边界、控制文件、修改冲突、子代理建议和真实沙箱。
-可复现该模型验证（使用 `config.py` 中的模型服务；会产生模型请求）：
-
-```bash
-.conda-env/bin/python scripts/approval_acceptance.py
+```mermaid
+flowchart TD
+    User[用户任务] --> UI[CLI / Web]
+    UI --> Context[规则、历史、摘要与按需检索]
+    Context --> Agent[代理编排]
+    Agent --> Model[模型协议适配]
+    Model --> Call[结构化工具调用]
+    Call --> Runtime[统一 Tool Runtime]
+    Runtime --> Validate[参数、路径、Hooks 与授权]
+    Validate --> Review[变更 diff 与审批]
+    Review --> Write[加锁、复核与文件提交]
+    Validate --> Sandbox[沙箱测试 / PTY]
+    Validate --> Tasks[子代理 / 后台任务]
+    Validate --> MCP[MCP 服务]
+    Write --> Result[结构化执行结果与审计]
+    Sandbox --> Result
+    Tasks --> Result
+    MCP --> Result
+    Result --> Agent
+    Agent --> Answer[向用户汇报实际结果]
 ```
 
+CLI 使用有界 Python 工具循环；Web 使用 LangGraph 编排与检查点。两个入口复用模型适配器、工具注册表、执行权限和任务基础层。
 
-## 自动与手动上下文压缩
+## 关键设计
+
+### 统一执行边界
+
+模型只能提交工具名称和参数。工具是否存在、参数是否合法、路径能否访问、操作是否获准，由程序判断。模型回复、文件内容、检索资料及 MCP 返回文字都不能充当授权。
+
+Web 路径还按输入检查、模型响应校验、工具执行边界和结果约束组织四层护栏。启发式注入提示与敏感内容识别用于辅助判断；实际操作仍受 Runtime 的硬规则限制。
+
+### 可审阅的多文件变更
+
+`apply_changes` 对相关文件先整批预检，生成合并 diff，经一次审批后取得共享工作区锁，再复核文件内容与目标路径。已有文件通过唯一匹配的文字片段修改，新文件通过完整内容创建。
+
+单文件使用原子替换或独占创建；批量提交发生可捕获失败时尝试逆序补偿，并报告未能恢复的路径。多个文件逐一提交，**不保证跨文件原子可见性或进程强杀后的回滚**。
+
+### 可继续交互的任务
+
+模型可启动 PTY、发现任务、读取输出、发送输入、等待和取消；用户也可在任务面板接管。子代理有独立上下文，并使用同一套修改审批与沙箱测试工具。
+
+Web 的常驻任务宿主允许任务跨同一会话的请求和审批等待继续运行。服务重启后保留记录并标记未完成任务为中断，不自动恢复或重跑旧进程。
+
+## 快速开始
+
+需要 Python 3.12+；沙箱测试和 PTY 需要 Linux / WSL、系统 `bubblewrap`，以及可用的 namespace 支持。Git 和 Chromium 分别用于可选的 Git 功能和浏览器工具。
+
+```bash
+git clone https://github.com/CatoNeneko/my_local_cli.git
+cd my_local_cli
+
+# 创建项目环境，然后安装命令入口。
+mamba env create --prefix ./.conda-env --file environment.yml
+mamba activate ./.conda-env
+python -m pip install .
+
+ai-cli --version
+ai-cli --doctor --json
+```
+
+也可将项目安装到已有的 Python 3.12+ 虚拟环境。`--doctor` 只做离线静态检查，不请求模型；找到 `bwrap` 不等于沙箱已实际运行成功。
+
+### 配置模型服务
+
+参考 [config.example.toml](config.example.toml)，将配置保存到 `~/.config/local-ai-cli/config.toml`，或用 `--config` 显式指定可信文件：
+
+```toml
+[model]
+provider = "openai"
+name = "your-model-id"
+base_url = "https://your-provider.example/v1"
+api_key_env = "OPENAI_API_KEY"
+stream = true
+
+[runtime]
+approval_mode = "manual"
+mcp_enabled = false
+```
+
+实际密钥通过启动终端的 `OPENAI_API_KEY` 环境变量提供，不写入 TOML。配置优先级为：**默认值 → 可信用户 TOML → 环境变量 → 显式 CLI 参数**。程序不会自动加载工作区中的启动 TOML。
+
+默认模型名称为空、人工审批、MCP 关闭，不会自动启动本地模型。配置字段与自动审查规则见[使用指南](docs/PRODUCT_UPGRADE.md)。
+
+DeepSeek 的已验证配置与真实 API 验收范围见 [DeepSeek 接入与实测记录](docs/DEEPSEEK.md)。
+
+### 启动 CLI 或 Web
+
+```bash
+# CLI：工作目录与助手安装目录分离。
+ai-cli --config /path/to/config.toml -C /path/to/project --session work
+
+# Web：-C 指定服务允许访问的工作区根目录。
+ai-cli-web --config /path/to/config.toml -C /path/to/projects --port 8000
+```
+
+Web 地址为 `http://127.0.0.1:8000`。未配置模型时仍可管理会话、浏览文件、建立索引和维护记忆。
+
+可以从以下任务开始：
 
 ```text
-/compact             手动压缩旧轮次
-/compact status      查看开关、摘要长度与已摘要消息数量
-/compact auto off    关闭自动压缩，已保存摘要仍可使用
-/compact auto on     开启自动压缩
-/context             查看实际请求预算、摘要与省略情况
-/history             查看完整历史（包括摘要检查点）
+读取计算模块和现有测试，定位加法错误，展示修改 diff，批准后修复并运行测试。
 ```
 
-自动压缩默认开启：主代理请求达到 80% 字符预算或超过 12 个近期用户轮次时，先摘要旧轮次。
-默认保留最近 2 个完整用户轮次；预算不足时保留 1 个，始终不拆工具调用和对应结果。
-摘要与最新消息仍超预算时拒绝，不靠删掉最新工具链强行发送。
-当前预算按 JSON 字符计算，不能解释为模型原生 context window 的精确 token 百分比。
+## 项目组织
 
-摘要请求独立、无工具且不携带项目规则或 Skills。长记录使用最多约 4000 字符的片段，并标记截断；最多 6 批，逐批合并前一摘要。
-每次摘要最多 4000 字符，输出或请求异常时不启用新摘要；自动失败后沿用原来的完整轮次裁剪，不对同一旧前缀反复请求。
-再次手动 `/compact` 可以重试；最近轮次本身太大时仍需缩小附件或工具结果。
-请求超时默认 30 秒，是网络等待限制，不是整个分批流程的总耗时。
+| 代码 | 职责 |
+|---|---|
+| `cli.py`、`script.py`、`web/app.py`、`web/static/` | 命令行、HTTP API 与 Web 界面 |
+| `agent.py`、`web/workflow.py`、`subagent_worker.py` | 代理循环、图编排与独立子代理 |
+| `model_client.py`、`api_adapter.py`、`streaming.py` | 模型请求、协议适配与流式收集 |
+| `tool_registry.py`、`tool_runtime.py`、`approval.py` | 工具声明、共享执行入口与审批 |
+| `harness/configuration.py`、`harness/diagnostics.py` | 统一配置与离线检查 |
+| `harness/files/`、`harness/infrastructure/` | 多文件变更与共享工作区锁 |
+| `harness/tasks/`、`web/task_service.py`、`web/task_host.py` | 进程驱动、任务身份、持久审批与任务宿主 |
+| `context_window.py`、`compaction.py`、`web/knowledge.py` | 上下文预算、摘要、检索与显式记忆 |
 
-原消息不删除。摘要检查点作为带元数据的 assistant 记录追加到同一 JSONL，记录覆盖位置及原前缀 SHA-256。
-请求组装时验证检查点，使用低优先级的历史摘要和最近轮次；项目系统规则仍单独加载，摘要不是新授权。
-重启、切换、重命名及 `/save` 保留检查点；`/clear` 清空当前会话时一并清空摘要。
-自动开关只对当前 CLI 进程生效。子代理和审查器的独立短上下文暂不自动压缩。
+## 验证
 
-摘要是有损记忆，不能保证保留每个细节或避免模型误判；长旧记录仅提供片段，原文仍在历史中。
-已通过真实模型的手动摘要、自动触发和恢复验证：旧暗号与“不修改 test_calc.py”的约束在三种情况下均正确回忆。
-原历史是固定示例，摘要与后续回答是真实模型生成；不代表所有历史长度、模型或任务均已验证。
+0.2.0 最新本机沙箱回归：**508 项通过、33 项跳过**。跳过项没有计为通过，结果也不代表所有操作系统或模型服务均已验证。
+
+额外通过的固定协议夹具验收包括：
+
+- 浏览器到 worker、diff 审批、文件提交与沙箱测试的完整流程。
+- 可写子代理的批准、拒绝、冲突、取消及会话隔离。
+- 多文件变更批准前不写入，批准后提交并保持原测试不变。
+- Markdown、安全文本呈现、草稿、输入法及流式事件更新。
+- 离线构建 wheel，在临时环境中安装并离开源码目录运行。
+
+这些验收实际执行客户端、进程、文件操作和测试沙箱，模型输出使用本机固定协议夹具。
+
+另完成 DeepSeek 官方 API 的真实联测：`/models` 返回 `deepseek-flash` 与 `deepseek-v4-pro`，本轮选用 `deepseek-flash`，最新七项工作流验收全部通过。此结果只验证指定 DeepSeek 模型和本轮覆盖的流程；其他 provider、远程语义 Embedding 与 GitHub CI 仍待验证。详细范围见 [DeepSeek 接入与实测记录](docs/DEEPSEEK.md)。
+
+开发检查：
 
 ```bash
-.conda-env/bin/python scripts/compaction_acceptance.py
+python -m pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
 ```
 
-实现及代码阅读见 [上下文压缩设计](docs/COMPACTION.md)。更新后的源码包包含此功能。
+本地功能测试使用现有 `run_tests` 沙箱入口；完整步骤与结果见[验收记录](docs/RELEASE_VALIDATION.md)。CI 配置位于 `.github/workflows/tests.yml`，本机通过不等同于远端 CI 通过。
 
-## 基础浏览器
+## 当前边界
 
-已接入 Playwright + Chromium 的独立 MCP 服务，支持打开网页、读取正文与元素编号、填写、点击、等待文字和保存截图。首次使用才启动浏览器，临时 Cookie 不跨浏览器重启保留。浏览器可联网，操作保留 MCP 确认；截图仅保存文件，尚未接入视觉模型。安装、使用与限制见 [浏览器说明](docs/BROWSER.md)。
+- 面向本地单用户使用，Web 仅监听 loopback；未实现公网多租户认证与资源隔离。
+- Bubblewrap 仍共享宿主内核；当前有每进程资源限制，尚无 cgroup 聚合配额或完整 seccomp 策略。
+- MCP 服务和子代理 Python worker 本身不在测试沙箱内；stdio MCP 不包含 HTTP transport、resources 或 prompts 的完整支持。
+- 默认检索不是语义模型；长期记忆为显式工作区记录；上下文预算按字符估算。
+- 多文件变更尚无崩溃恢复日志；后台任务不会在服务重启后自动恢复进程。
+
+## 文档
+
+- [架构与执行流程](docs/ARCHITECTURE.md)
+- [安装、配置与多文件修改](docs/PRODUCT_UPGRADE.md)
+- [Web、RAG、长期记忆与恢复](docs/WORKBENCH.md)
+- [审批机制](docs/APPROVAL.md)
+- [上下文压缩](docs/COMPACTION.md)
+- [浏览器与 MCP](docs/BROWSER.md)
+- [验收记录](docs/RELEASE_VALIDATION.md)
+- [源码学习导航](docs/learning/README.md)

@@ -1,4 +1,5 @@
 """有限扫描的项目文件索引与文件名模糊匹配，不读取文件正文。"""
+
 import os
 import time
 from pathlib import Path
@@ -16,11 +17,11 @@ def scan_files():
     stack = [permissions.PROJECT_ROOT]
     visited = 0
     deadline = time.monotonic() + SCAN_SECONDS
-    reason = ''
+    reason = ""
     warnings = []
     while stack and not reason:
         if time.monotonic() >= deadline:
-            reason = '扫描时间上限'
+            reason = "扫描时间上限"
             break
         directory = stack.pop()
         try:
@@ -28,28 +29,35 @@ def scan_files():
                 for entry in entries:
                     visited += 1
                     if visited > MAX_ENTRIES:
-                        reason = '目录项数量上限'
+                        reason = "目录项数量上限"
                         break
                     if time.monotonic() >= deadline:
-                        reason = '扫描时间上限'
+                        reason = "扫描时间上限"
                         break
                     if entry.is_symlink():
                         continue
                     checked = permissions.resolve_project_path(entry.path)
-                    if not checked['ok']:
+                    if not checked["ok"]:
                         continue
                     if entry.is_dir(follow_symlinks=False):
-                        if entry.name not in search_config['ignored_directories']:
+                        if entry.name not in search_config["ignored_directories"]:
                             stack.append(Path(entry.path))
                     elif entry.is_file(follow_symlinks=False):
-                        files.append(str(Path(checked['path']).relative_to(permissions.PROJECT_ROOT)))
+                        files.append(
+                            str(Path(checked["path"]).relative_to(permissions.PROJECT_ROOT))
+                        )
                         if len(files) >= MAX_FILES:
-                            reason = '文件数量上限'
+                            reason = "文件数量上限"
                             break
         except OSError as error:
             if len(warnings) < 5:
-                warnings.append('跳过无法读取的目录: ' + str(error))
-    return {'files': sorted(files), 'truncated': bool(reason), 'reason': reason, 'warnings': warnings}
+                warnings.append("跳过无法读取的目录: " + str(error))
+    return {
+        "files": sorted(files),
+        "truncated": bool(reason),
+        "reason": reason,
+        "warnings": warnings,
+    }
 
 
 def fuzzy_score(query, path):

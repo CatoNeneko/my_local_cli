@@ -1,4 +1,5 @@
 """基础浏览器 stdio MCP；启动仅发现工具，首次 open_page 才创建 Chromium。"""
+
 import os
 from pathlib import Path
 import sys
@@ -10,7 +11,9 @@ sys.path.insert(0, str(ROOT))
 from browser_runtime import BrowserController
 from mcp.server.fastmcp import FastMCP
 
-controller = BrowserController(os.environ.get('AI_CLI_BROWSER_ARTIFACTS', str(ROOT / '.browser-artifacts')))
+controller = BrowserController(
+    os.environ.get("AI_CLI_BROWSER_ARTIFACTS", str(ROOT / ".browser-artifacts"))
+)
 
 
 @asynccontextmanager
@@ -21,7 +24,7 @@ async def lifespan(server):
         await controller.close()
 
 
-server = FastMCP('CLI Browser', lifespan=lifespan)
+server = FastMCP("CLI Browser", lifespan=lifespan)
 
 
 async def invoke(method, *args):
@@ -30,7 +33,11 @@ async def invoke(method, *args):
     except ValueError:
         raise
     except Exception as error:
-        raise RuntimeError('浏览器操作失败: ' + type(error).__name__ + '；超时或页面变化时请重新读取确认实际状态。首次启动失败请检查 Chromium 和系统依赖。') from None
+        raise RuntimeError(
+            "浏览器操作失败: "
+            + type(error).__name__
+            + "；超时或页面变化时请重新读取确认实际状态。首次启动失败请检查 Chromium 和系统依赖。"
+        ) from None
 
 
 @server.tool()
@@ -75,5 +82,5 @@ async def close_browser() -> dict[str, Any]:
     return await invoke(controller.close)
 
 
-if __name__ == '__main__':
-    server.run(transport='stdio')
+if __name__ == "__main__":
+    server.run(transport="stdio")

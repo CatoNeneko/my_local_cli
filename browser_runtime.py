@@ -1,4 +1,5 @@
 """单页面、临时上下文的浏览器执行器；不暴露任意 JS、Shell 或文件路径。"""
+
 import asyncio
 import json
 from pathlib import Path
@@ -11,15 +12,25 @@ MAX_SCREENSHOTS = 32
 
 
 def validate_url(url):
-    if not isinstance(url, str) or not url or len(url) > 2048 or any(ord(char) < 32 or char.isspace() for char in url):
-        raise ValueError('URL 必须是 1–2048 字符的 HTTP(S) 地址')
+    if (
+        not isinstance(url, str)
+        or not url
+        or len(url) > 2048
+        or any(ord(char) < 32 or char.isspace() for char in url)
+    ):
+        raise ValueError("URL 必须是 1–2048 字符的 HTTP(S) 地址")
     try:
         parsed = urlsplit(url)
-        if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
             raise ValueError()
         _ = parsed.port
     except ValueError as error:
-        raise ValueError('只允许无嵌入凭据的 HTTP(S) URL；不支持 file/data/javascript') from error
+        raise ValueError("只允许无嵌入凭据的 HTTP(S) URL；不支持 file/data/javascript") from error
     return url
 
 
@@ -55,17 +66,27 @@ class BrowserController:
         if self.browser is not None and self.browser.is_connected():
             return
         from playwright.async_api import async_playwright
+
         self.playwright = await async_playwright().start()
         try:
-            self.browser = await self.playwright.chromium.launch(headless=True, chromium_sandbox=True, timeout=15000)
-            self.context = await self.browser.new_context(viewport={'width': 1280, 'height': 720},
-                accept_downloads=False, service_workers='block', permissions=[])
+            self.browser = await self.playwright.chromium.launch(
+                headless=True, chromium_sandbox=True, timeout=15000
+            )
+            self.context = await self.browser.new_context(
+                viewport={"width": 1280, "height": 720},
+                accept_downloads=False,
+                service_workers="block",
+                permissions=[],
+            )
             self.context.set_default_timeout(5000)
             self.context.set_default_navigation_timeout(10000)
-            await self.context.route('**/*', self._route)
+            await self.context.route("**/*", self._route)
             self.page = await self.context.new_page()
-            self.context.on('page', lambda page: asyncio.create_task(page.close()) if page != self.page else None)
-            self.page.on('download', lambda download: asyncio.create_task(download.cancel()))
+            self.context.on(
+                "page",
+                lambda page: asyncio.create_task(page.close()) if page != self.page else None,
+            )
+            self.page.on("download", lambda download: asyncio.create_task(download.cancel()))
         except BaseException:
             await self.close()
             raise
@@ -80,82 +101,98 @@ class BrowserController:
 
     def _require_page(self):
         if self.page is None or self.page.is_closed():
-            raise ValueError('尚未打开页面，请先调用 open_page')
+            raise ValueError("尚未打开页面，请先调用 open_page")
         return self.page
 
     async def open(self, url):
         validate_url(url)
         await self._start()
         self.refs.clear()
-        response = await self.page.goto(url, wait_until='domcontentloaded')
+        response = await self.page.goto(url, wait_until="domcontentloaded")
         result = await self.read()
-        result['http_status'] = response.status if response else None
+        result["http_status"] = response.status if response else None
         return result
 
     async def read(self):
         page = self._require_page()
-        if page.url != 'about:blank':
+        if page.url != "about:blank":
             validate_url(page.url)
-        result = await page.evaluate(SNAPSHOT_SCRIPT, {'prefix': uuid.uuid4().hex[:8],
-            'textLimit': MAX_TEXT, 'elementLimit': MAX_ELEMENTS})
-        self.refs = {item['ref']: dict(item) for item in result['elements']}
-        snapshot = {'ok': True, 'url': page.url[:300], 'url_truncated': len(page.url) > 300,
-                    'title': (await page.title())[:200], **result}
+        result = await page.evaluate(
+            SNAPSHOT_SCRIPT,
+            {"prefix": uuid.uuid4().hex[:8], "textLimit": MAX_TEXT, "elementLimit": MAX_ELEMENTS},
+        )
+        self.refs = {item["ref"]: dict(item) for item in result["elements"]}
+        snapshot = {
+            "ok": True,
+            "url": page.url[:300],
+            "url_truncated": len(page.url) > 300,
+            "title": (await page.title())[:200],
+            **result,
+        }
         # MCP 同时返回正文 JSON 和结构化 JSON，转义字符也计入体积预算。
         while len(json.dumps(snapshot, ensure_ascii=False)) > 4000:
-            if snapshot['text']:
-                snapshot['text'] = snapshot['text'][:-200]
-                snapshot['text_truncated'] = True
-            elif snapshot['elements']:
-                snapshot['elements'].pop()
-                snapshot['elements_truncated'] = True
+            if snapshot["text"]:
+                snapshot["text"] = snapshot["text"][:-200]
+                snapshot["text_truncated"] = True
+            elif snapshot["elements"]:
+                snapshot["elements"].pop()
+                snapshot["elements_truncated"] = True
             else:
                 break
-        self.refs = {item['ref']: dict(item) for item in snapshot['elements']}
+        self.refs = {item["ref"]: dict(item) for item in snapshot["elements"]}
         return snapshot
 
     def _locator(self, ref):
         self._require_page()
         if ref not in self.refs:
-            raise ValueError('元素编号不存在或已过期，请重新 read_page 并使用最新 ref')
+            raise ValueError("元素编号不存在或已过期，请重新 read_page 并使用最新 ref")
         return self.page.locator('[data-ai-cli-ref="' + ref + '"]')
 
     async def click(self, ref):
         locator = self._locator(ref)
         await locator.click()
-        await self.page.wait_for_load_state('domcontentloaded')
+        await self.page.wait_for_load_state("domcontentloaded")
         return await self.read()
 
     async def fill(self, ref, value):
-        if not isinstance(value, str) or len(value) > 4000 or '\x00' in value:
-            raise ValueError('输入内容最多 4000 字符，不允许空字符')
+        if not isinstance(value, str) or len(value) > 4000 or "\x00" in value:
+            raise ValueError("输入内容最多 4000 字符，不允许空字符")
         locator = self._locator(ref)
-        if await locator.get_attribute('type') in ('file', 'password'):
-            raise ValueError('基础版不支持文件上传或密码输入')
+        if await locator.get_attribute("type") in ("file", "password"):
+            raise ValueError("基础版不支持文件上传或密码输入")
         await locator.fill(value)
         return await self.read()
 
     async def wait_text(self, text):
         if not isinstance(text, str) or not text or len(text) > 200:
-            raise ValueError('等待文字必须是 1–200 字符')
-        await self._require_page().get_by_text(text, exact=False).first.wait_for(state='visible', timeout=5000)
+            raise ValueError("等待文字必须是 1–200 字符")
+        await (
+            self._require_page()
+            .get_by_text(text, exact=False)
+            .first.wait_for(state="visible", timeout=5000)
+        )
         return await self.read()
 
     async def screenshot(self):
         if self.screenshots >= MAX_SCREENSHOTS:
-            raise ValueError('本次浏览器服务截图达到 32 张上限')
-        raw = await self._require_page().screenshot(type='png', full_page=False, timeout=5000)
+            raise ValueError("本次浏览器服务截图达到 32 张上限")
+        raw = await self._require_page().screenshot(type="png", full_page=False, timeout=5000)
         if len(raw) > 4194304:
-            raise ValueError('截图超过 4 MiB，未保存')
+            raise ValueError("截图超过 4 MiB，未保存")
         directory = self.screenshot_directory
         if any(path.is_symlink() for path in (directory, *directory.parents)):
-            raise ValueError('截图目录不能含符号链接')
+            raise ValueError("截图目录不能含符号链接")
         directory.mkdir(parents=True, exist_ok=True)
-        path = directory / (uuid.uuid4().hex + '.png')
-        with path.open('xb') as file:
+        path = directory / (uuid.uuid4().hex + ".png")
+        with path.open("xb") as file:
             file.write(raw)
         self.screenshots += 1
-        return {'ok': True, 'path': str(path), 'bytes': len(raw), 'message': '截图仅保存为文件，未发送给视觉模型'}
+        return {
+            "ok": True,
+            "path": str(path),
+            "bytes": len(raw),
+            "message": "截图仅保存为文件，未发送给视觉模型",
+        }
 
     async def close(self):
         browser, playwright = self.browser, self.playwright
@@ -167,4 +204,4 @@ class BrowserController:
         finally:
             if playwright is not None:
                 await playwright.stop()
-        return {'ok': True, 'message': '浏览器及临时会话已关闭'}
+        return {"ok": True, "message": "浏览器及临时会话已关闭"}

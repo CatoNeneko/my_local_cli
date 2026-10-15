@@ -24,6 +24,10 @@ artifacts/
 *.log
 # Packaging output
 *.zip
+*.whl
+*.egg-info/
+build/
+dist/
 
 # Dedicated browser binaries and private screenshots
 .browser-runtime/

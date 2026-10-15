@@ -4,9 +4,5 @@ channels:
 dependencies:
   - python=3.12
   - pip
-  - pytest
   - pip:
-      - mcp==1.30.0
-      - prompt-toolkit==3.0.53
-      - jsonschema==4.26.0
-      - playwright==1.63.0
+      - -r requirements.txt

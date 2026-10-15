@@ -1,4 +1,5 @@
 """项目递归文字搜索：共享路径策略，跳过符号链接并限制读取和结果规模。"""
+
 import fnmatch
 import json
 import os
@@ -18,8 +19,17 @@ def search_project(path, keyword, glob="*"):
     root = Path(checked["path"])
     if not root.is_dir():
         return {"ok": False, "error": "项目搜索目标必须是存在的目录"}
-    numeric_keys = ["max_files", "max_file_bytes", "max_total_bytes", "max_matches", "max_output_chars", "timeout_seconds"]
-    if any(type(search_config.get(key)) is not int or search_config[key] <= 0 for key in numeric_keys):
+    numeric_keys = [
+        "max_files",
+        "max_file_bytes",
+        "max_total_bytes",
+        "max_matches",
+        "max_output_chars",
+        "timeout_seconds",
+    ]
+    if any(
+        type(search_config.get(key)) is not int or search_config[key] <= 0 for key in numeric_keys
+    ):
         return {"ok": False, "error": "搜索限制必须是正整数"}
     matches = []
     warnings = []
@@ -31,9 +41,16 @@ def search_project(path, keyword, glob="*"):
     ignored = set(search_config["ignored_directories"])
 
     def result(reason=""):
-        return {"ok": True, "matches": matches, "files_scanned": scanned,
-                "bytes_read": total_bytes, "skipped": skipped, "warnings": warnings,
-                "truncated": bool(reason), "limit_reason": reason}
+        return {
+            "ok": True,
+            "matches": matches,
+            "files_scanned": scanned,
+            "bytes_read": total_bytes,
+            "skipped": skipped,
+            "warnings": warnings,
+            "truncated": bool(reason),
+            "limit_reason": reason,
+        }
 
     def walk_error(error):
         skipped["unreadable"] += 1
@@ -48,7 +65,11 @@ def search_project(path, keyword, glob="*"):
             if time.monotonic() >= deadline:
                 return result("搜索时间上限")
             item = Path(directory) / name
-            if name in ignored or item.is_symlink() or not permissions.resolve_project_path(str(item))["ok"]:
+            if (
+                name in ignored
+                or item.is_symlink()
+                or not permissions.resolve_project_path(str(item))["ok"]
+            ):
                 skipped["protected_or_link"] += 1
             else:
                 allowed.append(name)
@@ -103,9 +124,13 @@ def search_project(path, keyword, glob="*"):
                 if position < 0:
                     continue
                 start = max(0, position - 100) if len(line) > 500 else 0
-                snippet = line[start:start + 500]
-                entry = {"path": relative, "line_number": number, "content": snippet,
-                         "content_truncated": start > 0 or start + len(snippet) < len(line)}
+                snippet = line[start : start + 500]
+                entry = {
+                    "path": relative,
+                    "line_number": number,
+                    "content": snippet,
+                    "content_truncated": start > 0 or start + len(snippet) < len(line),
+                }
                 size = len(json.dumps(entry, ensure_ascii=False))
                 if output_chars + size > search_config["max_output_chars"]:
                     return result("结果字符数量上限")

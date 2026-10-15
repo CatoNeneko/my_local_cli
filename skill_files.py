@@ -1,4 +1,5 @@
 """新建 Skill 文件：审查后独占创建，不覆盖已有文件。"""
+
 import os
 import tempfile
 from pathlib import Path
@@ -37,9 +38,11 @@ def prepare_create_skill(path, new_content):
     if len(raw) > MAX_SKILL_BYTES:
         return {"ok": False, "error": "Skill 内容超过 32 KiB 上限"}
     return {
-        "ok": True, "path": checked["path"], "new_bytes": raw,
+        "ok": True,
+        "path": checked["path"],
+        "new_bytes": raw,
         "diff": build_diff(checked["path"], "", new_content),
-        "details": "新建 Skill 文件，不覆盖已有文件，也不自动启用"
+        "details": "新建 Skill 文件，不覆盖已有文件，也不自动启用",
     }
 
 
@@ -51,7 +54,9 @@ def apply_prepared_skill(prepared):
             return {"ok": False, "error": "目标已变化或已存在，创建已取消"}
         target = Path(checked["path"])
         target.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".skill-draft-", delete=False) as file:
+        with tempfile.NamedTemporaryFile(
+            dir=target.parent, prefix=".skill-draft-", delete=False
+        ) as file:
             temporary_path = Path(file.name)
             file.write(prepared["new_bytes"])
             file.flush()

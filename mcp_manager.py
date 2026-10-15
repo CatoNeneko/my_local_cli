@@ -1,4 +1,5 @@
 """CLI 运行期间持有 MCP 连接；同步主循环通过 portal 请求异步操作。"""
+
 import asyncio
 from datetime import timedelta
 
@@ -44,18 +45,21 @@ class MCPManager:
         queue = asyncio.Queue()
         async with stdio_client(connection["parameters"]) as (read_stream, write_stream):
             async with ClientSession(
-                read_stream, write_stream,
-                read_timeout_seconds=timedelta(seconds=connection["timeout"])
+                read_stream,
+                write_stream,
+                read_timeout_seconds=timedelta(seconds=connection["timeout"]),
             ) as session:
                 async with asyncio.timeout(connection["timeout"]):
                     initialized = await session.initialize()
                     tools = await collect_tools(session)
-                task_status.started({
-                    "queue": queue,
-                    "closed": closed,
-                    "server": initialized.serverInfo.model_dump(mode="json"),
-                    "tools": tools
-                })
+                task_status.started(
+                    {
+                        "queue": queue,
+                        "closed": closed,
+                        "server": initialized.serverInfo.model_dump(mode="json"),
+                        "tools": tools,
+                    }
+                )
                 while True:
                     operation, arguments, response = await queue.get()
                     if operation == "close":
@@ -71,10 +75,13 @@ class MCPManager:
                             response.set_result(result)
                     except Exception as error:
                         if not response.done():
-                            response.set_result({
-                                "ok": False, "disconnected": True,
-                                "error": "MCP 通信失败: " + type(error).__name__
-                            })
+                            response.set_result(
+                                {
+                                    "ok": False,
+                                    "disconnected": True,
+                                    "error": "MCP 通信失败: " + type(error).__name__,
+                                }
+                            )
                         return
 
     async def _request(self, handle, operation, arguments):
@@ -82,8 +89,9 @@ class MCPManager:
         await handle["queue"].put((operation, arguments, response))
         stopped = asyncio.wrap_future(handle["future"])
         done, pending = await asyncio.wait(
-            [response, stopped], timeout=handle["connection"]["timeout"] + 3,
-            return_when=asyncio.FIRST_COMPLETED
+            [response, stopped],
+            timeout=handle["connection"]["timeout"] + 3,
+            return_when=asyncio.FIRST_COMPLETED,
         )
         if response in done:
             return response.result()
@@ -104,9 +112,7 @@ class MCPManager:
             future, started = self.portal.start_task(self._serve, connection)
             connection["manager"] = self
             connection["server_name"] = name
-            self.services[name] = {
-                **started, "future": future, "connection": connection
-            }
+            self.services[name] = {**started, "future": future, "connection": connection}
             result = register_server_tools(name, {**started, "connection": connection})
             if not result["ok"]:
                 self.disconnect(name)
@@ -130,7 +136,11 @@ class MCPManager:
             self.abort(name)
             raise
         except Exception as error:
-            result = {"ok": False, "disconnected": True, "error": "MCP 请求失败: " + type(error).__name__}
+            result = {
+                "ok": False,
+                "disconnected": True,
+                "error": "MCP 请求失败: " + type(error).__name__,
+            }
         if result.get("disconnected"):
             self.disconnect(name)
         return result
@@ -172,12 +182,13 @@ class MCPManager:
         handle = self.services.pop(name, None)
         unregister_server_tools(name)
         if handle is not None:
-            handle['future'].cancel()
+            handle["future"].cancel()
             try:
-                self.portal.call(self._wait_closed, handle['closed'])
+                self.portal.call(self._wait_closed, handle["closed"])
             except Exception:
                 pass
 
     def tool_names(self):
         from tool_registry import TOOL_REGISTRY
+
         return [name for name, spec in TOOL_REGISTRY.items() if spec.get("kind") == "mcp"]

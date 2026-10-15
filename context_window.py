@@ -1,4 +1,5 @@
 """构造有界请求上下文；磁盘历史不裁剪，工具链按用户轮次保留。"""
+
 import json
 
 from config import context_config, model_config
@@ -50,11 +51,14 @@ def split_turns(messages):
 def request_size(messages, tools):
     if model_config.get("provider") == "openai":
         from api_adapter import wire_messages
+
         messages = wire_messages(messages)
-    return len(json.dumps({
-        "model": model_config["model"], "messages": messages,
-        "stream": False, "tools": tools
-    }, ensure_ascii=False))
+    return len(
+        json.dumps(
+            {"model": model_config["model"], "messages": messages, "stream": False, "tools": tools},
+            ensure_ascii=False,
+        )
+    )
 
 
 def prepare_context(messages, tools, include_context=True):
@@ -63,14 +67,23 @@ def prepare_context(messages, tools, include_context=True):
     if type(budget) is not int or budget <= 0 or type(turn_limit) is not int or turn_limit <= 0:
         raise ContextBudgetError("上下文预算必须是正整数")
     from compaction import context_view, summary_message
-    view = context_view(messages) if include_context else {'messages': messages, 'summary': '', 'covered': 0}
-    messages = view['messages']
+
+    view = (
+        context_view(messages)
+        if include_context
+        else {"messages": messages, "summary": "", "covered": 0}
+    )
+    messages = view["messages"]
     prefix = build_model_messages([]) if include_context else []
-    if view['summary']:
-        prefix.append(summary_message(view['summary']))
+    if view["summary"]:
+        prefix.append(summary_message(view["summary"]))
     start = 0
     # Skill 生成请求带有自己的 system 提示，也始终保留。
-    while start < len(messages) and isinstance(messages[start], dict) and messages[start].get("role") == "system":
+    while (
+        start < len(messages)
+        and isinstance(messages[start], dict)
+        and messages[start].get("role") == "system"
+    ):
         prefix.append(messages[start])
         start += 1
     turns = split_turns(messages[start:])
@@ -87,7 +100,9 @@ def prepare_context(messages, tools, include_context=True):
         candidate = turn + selected
         if request_size(prefix + candidate, tools) > budget:
             if not selected:
-                raise ContextBudgetError("最新一轮消息超预算，请缩小附件、工具结果或输入，或调整上下文预算")
+                raise ContextBudgetError(
+                    "最新一轮消息超预算，请缩小附件、工具结果或输入，或调整上下文预算"
+                )
             break
         selected = candidate
         kept += 1
@@ -95,8 +110,12 @@ def prepare_context(messages, tools, include_context=True):
             break
     final = prefix + selected
     return {
-        "messages": final, "chars": request_size(final, tools), "budget": budget,
-        "total_turns": len(turns), "sent_turns": kept,
-        "summarized_messages": view["covered"], "summary_chars": len(view["summary"]),
-        "omitted_messages": len(messages) - start - len(selected)
+        "messages": final,
+        "chars": request_size(final, tools),
+        "budget": budget,
+        "total_turns": len(turns),
+        "sent_turns": kept,
+        "summarized_messages": view["covered"],
+        "summary_chars": len(view["summary"]),
+        "omitted_messages": len(messages) - start - len(selected),
     }

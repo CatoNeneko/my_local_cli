@@ -22,10 +22,7 @@ def list_files(path):
             else:
                 kind = "file"
 
-            entries.append({
-                "name": entry.name,
-                "type": kind
-            })
+            entries.append({"name": entry.name, "type": kind})
 
         return {"ok": True, "entries": entries}
 
@@ -35,6 +32,7 @@ def list_files(path):
         return {"ok": False, "error": "路径不是目录"}
     except PermissionError:
         return {"ok": False, "error": "没有访问目录的权限"}
+
 
 def read_file(path):
 
@@ -46,31 +44,32 @@ def read_file(path):
     path = path_result["path"]
 
     try:
-        with open(path, 'rb') as file:
+        with open(path, "rb") as file:
             content = file.read(MAX_READ_BYTES + 1)
         if len(content) > MAX_READ_BYTES:
-            return {'ok': False, 'error': '读取文件超过 1 MiB 上限，请用项目搜索定位内容'}
-        return {'ok': True, 'content': content.decode('utf-8')}
+            return {"ok": False, "error": "读取文件超过 1 MiB 上限，请用项目搜索定位内容"}
+        return {"ok": True, "content": content.decode("utf-8")}
     except FileNotFoundError:
-        return {'ok': False, 'error': 'file not found'}
+        return {"ok": False, "error": "file not found"}
     except IsADirectoryError:
-        return {'ok': False, 'error': 'this is a folder'}
+        return {"ok": False, "error": "this is a folder"}
     except PermissionError:
-        return {'ok': False, 'error': 'permission denied'}
+        return {"ok": False, "error": "permission denied"}
     except UnicodeDecodeError:
-        return {'ok': False, 'error': 'this is not utf-8'}
+        return {"ok": False, "error": "this is not utf-8"}
+
 
 def search_file(path, keyword):
 
     result = read_file(path)
-    if not result['ok']:
+    if not result["ok"]:
         return result
 
     matches = []
     line_number = 1
 
-    for line in result['content'].splitlines():
+    for line in result["content"].splitlines():
         if keyword in line:
-            matches.append({'line_number': line_number, 'content': line})
+            matches.append({"line_number": line_number, "content": line})
         line_number += 1
-    return {'ok': True, 'matches': matches}
+    return {"ok": True, "matches": matches}

@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-ai-cli"
+version = "0.2.0"
+description = "用于学习和演示的 Python 终端与 Web AI 编程助手"
+readme = "README.md"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[project.scripts]
+ai-cli = "cli:main"
+ai-cli-web = "web.__main__:main"
+
+[tool.setuptools]
+include-package-data = false
+py-modules = [
+    "agent", "agent_proposals", "api_adapter", "approval", "attachments", "audit",
+    "browser_runtime", "cli", "command_help", "compaction", "config", "console_output",
+    "context_window", "file_catalog", "file_picker", "file_tools", "history", "hooks",
+    "mcp_client", "mcp_manager", "mcp_tools", "model_client", "new_files", "patches",
+    "path_input", "permissions", "project_instructions", "project_search", "sandbox",
+    "script", "sessions", "skill_files", "skill_generation", "skills", "streaming",
+    "subagent_worker", "terminal_dialog", "terminal_input", "tool_display", "tool_registry",
+    "tool_runtime", "tools", "workspace",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["harness", "harness.*", "web", "web.*", "mcp_servers", "mcp_servers.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+web = ["static/*.html", "static/*.js", "static/*.css"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".conda-env", ".browser-runtime", ".browser-artifacts", "artifacts", "build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+# 独立脚本须先将仓库根加入 sys.path，再导入项目模块。
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"mcp_servers/*.py" = ["E402"]
+"tests/test_web_evaluation.py" = ["E402"]

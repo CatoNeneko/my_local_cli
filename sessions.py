@@ -1,4 +1,5 @@
 """会话管理；文件路径由名称生成，独立于模型文件工具的访问入口。"""
+
 import json
 import os
 import re
@@ -16,7 +17,11 @@ class SessionManager:
         self.skill_snapshots = {}
 
     def path_for(self, name):
-        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name) or name == "rename":
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name)
+            or name == "rename"
+        ):
             raise ValueError("会话名为 1～64 位字母、数字、下划线或连字符，不能为 rename")
         if self.directory.is_symlink():
             raise ValueError("会话目录不能是符号链接")
@@ -99,7 +104,8 @@ class SessionManager:
         try:
             self.path_for(self.current_name)
             path = (
-                self.default_path.with_suffix(".json") if self.current_name == "default"
+                self.default_path.with_suffix(".json")
+                if self.current_name == "default"
                 else self.directory / (self.current_name + ".export.json")
             )
             if path.is_symlink():

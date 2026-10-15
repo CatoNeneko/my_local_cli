@@ -3,18 +3,26 @@ import json
 from config import agent_config, model_config
 from history import append_messages
 from model_client import request_message
-from tools import execute_tool
+from tool_runtime import execute_tool
 from context_window import ContextBudgetError
 
 
-def run_agent(messages, output=None):
+def run_agent(messages, output=None, on_final=None):
     from approval import task_scope
-    task = next((message.get('content', '') for message in reversed(messages) if message.get('role') == 'user'), '')
+
+    task = next(
+        (
+            message.get("content", "")
+            for message in reversed(messages)
+            if message.get("role") == "user"
+        ),
+        "",
+    )
     with task_scope(task):
-        return _run_agent(messages, output)
+        return _run_agent(messages, output, on_final)
 
 
-def _run_agent(messages, output=None):
+def _run_agent(messages, output=None, on_final=None):
     tool_count = 0
     max_tool_calls = agent_config["max_tool_calls"]
     for round_number in range(agent_config["max_rounds"]):
@@ -25,7 +33,7 @@ def _run_agent(messages, output=None):
                 output.begin()
                 try:
                     assistant_message = request_message(
-                        messages, stream=model_config['stream'], on_content=output.write
+                        messages, stream=model_config["stream"], on_content=output.write
                     )
                 finally:
                     output.end()
@@ -44,6 +52,8 @@ def _run_agent(messages, output=None):
             return "模型返回格式错误：tool_calls 必须是列表。"
         if not tool_calls:
             # 最终文字回复仍由主循环保存，避免重复记录。
+            if on_final is not None:
+                on_final(dict(assistant_message, role="assistant"))
             return content
 
         # 先验证整批结构，防止执行到一半才发现无法识别的调用。
@@ -69,7 +79,7 @@ def _run_agent(messages, output=None):
             name = function["name"]
             arguments = function.get("arguments", {})
             if cancelled:
-                result = {'ok': False, 'cancelled': True, 'error': '任务已取消，工具未执行'}
+                result = {"ok": False, "cancelled": True, "error": "任务已取消，工具未执行"}
             elif tool_count >= max_tool_calls:
                 # 不执行超预算调用，但补齐结果，使保存的消息链完整。
                 budget_exhausted = True
@@ -79,13 +89,17 @@ def _run_agent(messages, output=None):
                 try:
                     result = execute_tool(name, arguments)
                 except KeyboardInterrupt:
-                    result = {'ok': False, 'cancelled': True, 'error': '工具已取消；已完成操作不会回滚'}
-                cancelled = bool(result.get('cancelled'))
+                    result = {
+                        "ok": False,
+                        "cancelled": True,
+                        "error": "工具已取消；已完成操作不会回滚",
+                    }
+                cancelled = bool(result.get("cancelled"))
 
             tool_message = {
                 "role": "tool",
                 "tool_name": name,
-                "content": json.dumps(result, ensure_ascii=False)
+                "content": json.dumps(result, ensure_ascii=False),
             }
             if tool_call.get("id"):
                 tool_message["tool_call_id"] = tool_call["id"]
@@ -94,7 +108,9 @@ def _run_agent(messages, output=None):
         append_messages(round_messages)
         messages.extend(round_messages)
         if cancelled:
-            return '已取消当前任务并返回输入；已完成的操作不会回滚，请检查写入或外部操作的实际状态。'
+            return (
+                "已取消当前任务并返回输入；已完成的操作不会回滚，请检查写入或外部操作的实际状态。"
+            )
         if budget_exhausted:
             return "已达到工具调用总次数上限，请缩小任务范围。"
 

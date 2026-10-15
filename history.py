@@ -7,7 +7,7 @@ HISTORY_PATH = Path(__file__).resolve().parent / "history.jsonl"
 
 def clear_history():
     HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(HISTORY_PATH, "w", encoding="utf-8") as file:
+    with open(HISTORY_PATH, "w", encoding="utf-8"):
         pass
 
 
@@ -53,7 +53,9 @@ def load_history(path=None):
                         print("跳过一条缺少工具名称的记录")
                         continue
                 if "tool_calls" in message:
-                    if message["role"] != "assistant" or not isinstance(message["tool_calls"], list):
+                    if message["role"] != "assistant" or not isinstance(
+                        message["tool_calls"], list
+                    ):
                         print("跳过一条工具调用格式错误的记录")
                         continue
                 messages.append(message)

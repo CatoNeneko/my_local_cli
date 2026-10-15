@@ -1,4 +1,5 @@
 """工具状态与修改审查的终端展示；不改变工具结果或授权。"""
+
 import sys
 import unicodedata
 
@@ -7,7 +8,8 @@ def safe_text(value):
     """把控制字符显示为转义文字，避免文件内容操纵终端。"""
     text = str(value)
     return "".join(
-        char if char in "\n\t" or unicodedata.category(char) not in ("Cc", "Cf")
+        char
+        if char in "\n\t" or unicodedata.category(char) not in ("Cc", "Cf")
         else "\\u" + format(ord(char), "04x")
         for char in text
     )
@@ -23,6 +25,7 @@ def emit(text, color=""):
     if color and sys.stdout.isatty():
         from prompt_toolkit import print_formatted_text
         from prompt_toolkit.formatted_text import FormattedText
+
         print_formatted_text(FormattedText([(color, text)]))
     else:
         print(text, flush=True)
@@ -39,7 +42,7 @@ def tool_started(name, arguments):
 
 def tool_finished(name, result):
     succeeded = result["ok"]
-    label = '已取消' if result.get('cancelled') else "成功" if succeeded else "失败/未执行"
+    label = "已取消" if result.get("cancelled") else "成功" if succeeded else "失败/未执行"
     emit("[" + label + "] " + short_text(name), "ansigreen" if succeeded else "ansired")
     if not succeeded:
         emit("  原因: " + short_text(result.get("error", "工具未成功")))

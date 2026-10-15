@@ -1,8 +1,14 @@
 """所有模型工具的共享执行入口：验证、授权、执行、规范结果和记录。"""
+
 from audit import record_tool_event
 import json
 from jsonschema import Draft202012Validator
-from permissions import authorize_external_tool, authorize_tool, check_tool_policy, resolve_project_path
+from permissions import (
+    authorize_external_tool,
+    authorize_tool,
+    check_tool_policy,
+    resolve_project_path,
+)
 from tool_registry import TOOL_REGISTRY
 from hooks import run_hooks
 from tool_display import tool_started, tool_finished, show_diff, emit, short_text
@@ -33,23 +39,37 @@ def _execute_tool(name, arguments, source):
     if not validated["ok"]:
         return validated
     normalized = validated["arguments"]
-    if spec.get('kind') == 'task':
-        from process_tasks import JOBS
+    if spec.get("kind") in ("task", "task_list"):
+        from harness.tasks.runtime import task_access
         from approval import authorize_action
-        if normalized['task_id'] not in JOBS:
-            return {'ok': False, 'error': '未知当前进程任务 ID'}
-        hooks = run_hooks('before_tool', {
-            'name': name, 'operation': operation, 'source': source, 'arguments': normalized})
-        if not hooks['ok']:
+
+        access = None
+        if spec.get("kind") == "task":
+            access = task_access(normalized["task_id"])
+            if not access.get("ok"):
+                return access
+        hooks = run_hooks(
+            "before_tool",
+            {"name": name, "operation": operation, "source": source, "arguments": normalized},
+        )
+        if not hooks["ok"]:
             return hooks
-        approved = authorize_action(name, operation, normalized['task_id'], source, json.dumps(normalized, ensure_ascii=False))
-        if not approved['ok']:
+        approved = authorize_action(
+            name,
+            operation,
+            normalized.get("task_id", "current_session"),
+            source,
+            json.dumps(normalized, ensure_ascii=False),
+            prepared={"task_access": access},
+        )
+        if not approved["ok"]:
             return approved
-        return spec['handler'](**normalized)
+        return spec["handler"](**normalized)
     if spec.get("kind") == "mcp":
-        hook_result = run_hooks("before_tool", {
-            "name": name, "operation": operation, "source": source, "arguments": normalized
-        })
+        hook_result = run_hooks(
+            "before_tool",
+            {"name": name, "operation": operation, "source": source, "arguments": normalized},
+        )
         if not hook_result["ok"]:
             return hook_result
         details = spec["connection"]["details"]
@@ -66,17 +86,19 @@ def _execute_tool(name, arguments, source):
         return checked
     normalized["path"] = checked["path"]
 
-    hook_result = run_hooks("before_tool", {
-        "name": name, "operation": operation, "source": source, "arguments": normalized
-    })
+    hook_result = run_hooks(
+        "before_tool",
+        {"name": name, "operation": operation, "source": source, "arguments": normalized},
+    )
     if not hook_result["ok"]:
         return hook_result
 
-    if operation == 'write':
+    if operation == "write":
         from approval import write_boundary, record_decision
-        boundary = write_boundary(normalized['path'])
-        if not boundary['ok']:
-            record_decision(name, 'rule', 'deny', 'client_control')
+
+        boundary = write_boundary(normalized["path"])
+        if not boundary["ok"]:
+            record_decision(name, "rule", "deny", "client_control")
             return boundary
 
     prepared = None
@@ -103,9 +125,16 @@ def _execute_tool(name, arguments, source):
     if authorized["path"] != normalized["path"]:
         return {"ok": False, "error": "工具准备期间路径目标已变化，请重新提交"}
 
-    if prepared is not None:
-        return spec["handler"](prepared)
-    return spec["handler"](**normalized)
+    from contextlib import nullcontext
+    from harness.infrastructure.workspace_locks import workspace_write_lock
+    from permissions import PROJECT_ROOT
+
+    lock = workspace_write_lock(PROJECT_ROOT) if operation == "write" else nullcontext()
+    # 审批和准备不持锁；最终提交串行，handler 在锁内检查原文件是否变化。
+    with lock:
+        if prepared is not None:
+            return spec["handler"](prepared)
+        return spec["handler"](**normalized)
 
 
 def _execute_and_normalize(name, arguments, source="model"):
@@ -114,8 +143,11 @@ def _execute_and_normalize(name, arguments, source="model"):
     try:
         result = _execute_tool(name, arguments, source)
     except KeyboardInterrupt:
-        result = {'ok': False, 'cancelled': True,
-                  'error': '工具已取消；已完成的操作不会回滚，写入或外部操作请检查实际状态'}
+        result = {
+            "ok": False,
+            "cancelled": True,
+            "error": "工具已取消；已完成的操作不会回滚，写入或外部操作请检查实际状态",
+        }
     except Exception as error:
         error_type = type(error).__name__
         emit("工具执行异常: " + error_type + " " + short_text(error), "ansired")
@@ -125,13 +157,19 @@ def _execute_and_normalize(name, arguments, source="model"):
     spec = TOOL_REGISTRY.get(name) if isinstance(name, str) else None
     if spec is not None:
         try:
-            hook_result = run_hooks("after_tool", {
-                "name": name, "operation": spec.get("operation"), "source": source,
-                "arguments": arguments, "result": result
-            })
+            hook_result = run_hooks(
+                "after_tool",
+                {
+                    "name": name,
+                    "operation": spec.get("operation"),
+                    "source": source,
+                    "arguments": arguments,
+                    "result": result,
+                },
+            )
         except KeyboardInterrupt:
-            result = {**result, 'cancelled': True}
-            hook_result = {'ok': False, 'error': '执行后 Hook 已取消；工具结果保留'}
+            result = {**result, "cancelled": True}
+            hook_result = {"ok": False, "error": "执行后 Hook 已取消；工具结果保留"}
         if not hook_result["ok"]:
             result = dict(result)
             result["hook_warning"] = hook_result["error"]
@@ -140,10 +178,11 @@ def _execute_and_normalize(name, arguments, source="model"):
 
 def execute_tool(name, arguments, source="model"):
     from approval import decision_scope
+
     with decision_scope() as decisions:
         result = _execute_and_normalize(name, arguments, source)
         if decisions:
-            result = {**result, 'approval': list(decisions)}
+            result = {**result, "approval": list(decisions)}
         record_tool_event(name if isinstance(name, str) else "invalid_tool", result)
         tool_finished(name, result)
         return result

@@ -1,10 +1,6 @@
-"""兼容入口。注册位于 tool_registry，执行位于 tool_runtime。"""
-from tool_registry import get_tool_definitions
+"""用户文件工具的便利接口，所有操作复用统一 Runtime。"""
+
 from tool_runtime import execute_tool
-
-
-# 兼容旧导入；模型请求使用 getter，以便以后动态添加 MCP 工具。
-tool_definitions = get_tool_definitions()
 
 
 def read_file(path):
@@ -20,4 +16,6 @@ def list_files(path):
 
 
 def search_project(path, keyword, glob="*"):
-    return execute_tool("search_project", {"path": path, "keyword": keyword, "glob": glob}, source="user")
+    return execute_tool(
+        "search_project", {"path": path, "keyword": keyword, "glob": glob}, source="user"
+    )

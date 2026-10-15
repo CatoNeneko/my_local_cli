@@ -1,4 +1,5 @@
 """示例 stdio MCP 服务，提供可发现、可调用的加法工具。"""
+
 from mcp.server.fastmcp import FastMCP
 
 server = FastMCP("CLI Demo")

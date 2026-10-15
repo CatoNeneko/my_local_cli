@@ -1,4 +1,5 @@
 """共享路径边界与授权策略；模型参数不能改变策略或调用来源。"""
+
 import os
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def resolve_project_path(path):
 
 def confirm_tool(name, path, details=""):
     from terminal_input import request_confirmation
+
     prompt = "请求调用 " + name + "\n目标: " + path
     if details:
         prompt += "\n参数: " + details
@@ -45,8 +47,11 @@ def authorize_tool(name, operation, path, source="model", details="", *, prepare
     if not checked["ok"]:
         return checked
     from approval import authorize_action
-    approved = authorize_action(name, operation, checked['path'], source, details, prepared=prepared)
-    if not approved['ok']:
+
+    approved = authorize_action(
+        name, operation, checked["path"], source, details, prepared=prepared
+    )
+    if not approved["ok"]:
         return approved
     rechecked = resolve_project_path(path)
     if not rechecked["ok"]:
@@ -71,18 +76,29 @@ def authorize_external_tool(name, target, source="model", details=""):
     if not policy["ok"]:
         return policy
     from approval import record_decision
-    accepted = not policy['requires_confirmation'] or confirm_tool(name, target, details)
-    decision = record_decision(name, 'human' if policy['requires_confirmation'] else 'rule',
-                              'allow' if accepted else 'deny', 'external_service')
-    return {'ok': accepted, 'approval': [decision], **({} if accepted else {'error': '用户拒绝执行外部服务'})}
+
+    accepted = not policy["requires_confirmation"] or confirm_tool(name, target, details)
+    decision = record_decision(
+        name,
+        "human" if policy["requires_confirmation"] else "rule",
+        "allow" if accepted else "deny",
+        "external_service",
+    )
+    return {
+        "ok": accepted,
+        "approval": [decision],
+        **({} if accepted else {"error": "用户拒绝执行外部服务"}),
+    }
 
 
 def protected_project_paths(root):
     """找到需要在沙箱中遮蔽的路径，使用同一拒绝名单并跳过受保护目录。"""
     blocked = set(permission_config["blocked_names"])
     found = []
+
     def fail(error):
         raise error
+
     for directory, directories, files in os.walk(root, followlinks=False, onerror=fail):
         for name in list(directories):
             item = Path(directory) / name

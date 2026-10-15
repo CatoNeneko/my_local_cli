@@ -13,17 +13,19 @@
 
 ## 安装与启动
 
-Python 依赖安装在 `.conda-env`，Chromium 安装在助手目录的 `.browser-runtime`。当前机器已安装并验证。迁移到其他机器后，在助手安装目录运行：
+Python 依赖安装在项目虚拟环境，浏览器二进制单独安装。源码方式可以沿用助手目录的 `.browser-runtime`：
 
 ```bash
 .conda-env/bin/python -m pip install -r requirements.txt
 PLAYWRIGHT_BROWSERS_PATH="$PWD/.browser-runtime" .conda-env/bin/python -m playwright install chromium --only-shell
-./ai-cli
+AI_CLI_MCP=1 ./ai-cli --config /path/to/config.toml
 ```
 
-若启动提示缺少 Linux 系统库，按 Playwright 的系统依赖说明处理；系统库属于操作系统，不属于虚拟环境。当前机器无需额外安装系统库。浏览器启动启用 Chromium 自身的 sandbox，启动失败不会降级为关闭 sandbox。
+wheel 安装后可用同一虚拟环境的 `python -m playwright install chromium --only-shell` 安装到用户缓存，也可用可信环境变量 `PLAYWRIGHT_BROWSERS_PATH` 指定位置。程序优先使用该变量，其次使用已存在的源码 `.browser-runtime`，否则使用 Playwright 的用户缓存。
 
-启动时批准 browser MCP 服务即可向模型提供七种工具；首次打开网页时才启动 Chromium。`--no-mcp` 同时禁用浏览器。配置位于助手 `config.py` 的 `mcp_config["browser"]`。
+若启动提示缺少 Linux 系统库，按 Playwright 的系统依赖说明处理；系统库属于操作系统，不属于虚拟环境。浏览器启动启用 Chromium 自身的 sandbox，启动失败不会降级为关闭 sandbox。
+
+先按 [配置说明](PRODUCT_UPGRADE.md) 配置模型，并显式开启 MCP；默认 MCP 关闭。启动时批准 browser MCP 服务后提供工具；首次打开网页时才启动 Chromium。`--no-mcp` 同时禁用浏览器。服务声明位于助手 `config.py` 的 `mcp_config["browser"]`，解释器使用当前 Python 环境。
 
 ## 操作
 

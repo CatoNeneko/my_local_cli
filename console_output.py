@@ -1,4 +1,6 @@
 """终端输出状态：每轮响应重置，避免流式显示后重复打印最终文字。"""
+
+
 class ConsoleOutput:
     def __init__(self):
         self.begin()

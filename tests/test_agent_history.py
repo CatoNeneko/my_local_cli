@@ -22,19 +22,27 @@ def conversation(tmp_path, monkeypatch):
 
 def tool_request(count=1):
     return {
-        "role": "assistant", "content": "",
-        "tool_calls": [{"function": {"name": "read_file", "arguments": {"path": "sample.py"}}} for _ in range(count)]
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {"function": {"name": "read_file", "arguments": {"path": "sample.py"}}}
+            for _ in range(count)
+        ],
     }
 
 
 def test_tool_content_survives_followup_and_reload(conversation, monkeypatch):
     responses = iter([tool_request(), {"role": "assistant", "content": "文件已读取"}])
     snapshots = []
+
     def respond(messages):
         snapshots.append(json.loads(json.dumps(messages)))
         return next(responses)
+
     monkeypatch.setattr(agent, "request_message", respond)
-    monkeypatch.setattr(agent, "execute_tool", lambda *args: {"ok": True, "content": "answer = 42\n"})
+    monkeypatch.setattr(
+        agent, "execute_tool", lambda *args: {"ok": True, "content": "answer = 42\n"}
+    )
     reply = agent.run_agent(conversation)
     final = {"role": "assistant", "content": reply}
     conversation.append(final)
@@ -44,9 +52,11 @@ def test_tool_content_survives_followup_and_reload(conversation, monkeypatch):
     assert history.load_history() == conversation
     followup = history.load_history()
     followup.append({"role": "user", "content": "刚才文件的变量值是什么？"})
+
     def answer(messages):
         assert any(m["role"] == "tool" and "answer = 42" in m["content"] for m in messages)
         return {"role": "assistant", "content": "42"}
+
     monkeypatch.setattr(agent, "request_message", answer)
     assert agent.run_agent(followup) == "42"
 
@@ -101,9 +111,11 @@ def test_plain_reply_is_not_saved_twice(conversation, monkeypatch):
 
 def test_tool_history_validation(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "HISTORY_PATH", tmp_path / "history.jsonl")
-    history.append_messages([
-        {"role": "tool", "content": "missing name"},
-        {"role": "tool", "tool_name": "read_file", "content": "valid"},
-        {"role": "assistant", "content": "", "tool_calls": []}
-    ])
+    history.append_messages(
+        [
+            {"role": "tool", "content": "missing name"},
+            {"role": "tool", "tool_name": "read_file", "content": "valid"},
+            {"role": "assistant", "content": "", "tool_calls": []},
+        ]
+    )
     assert len(history.load_history()) == 2

@@ -1,4 +1,5 @@
 """Ollama NDJSON 响应收集；结束标记到达前不返回可执行工具调用。"""
+
 import json
 
 
@@ -21,7 +22,7 @@ def parse_json(raw):
 def validate_message(message):
     if not isinstance(message, dict):
         raise ModelResponseError("message 必须是字典")
-    for field in ("content", "thinking"):
+    for field in ("content", "thinking", "reasoning_content"):
         if not isinstance(message.get(field, ""), str):
             raise ModelResponseError(field + " 必须是字符串")
     calls = message.get("tool_calls", [])
@@ -49,7 +50,9 @@ def collect_stream(response, max_bytes, on_content=None):
         except OSError as error:
             raise ModelResponseError("流式读取失败: " + type(error).__name__) from error
         if not line:
-            raise ModelResponseError("流式响应提前结束，未收到 done 标记；本次未完成响应中的工具调用未执行")
+            raise ModelResponseError(
+                "流式响应提前结束，未收到 done 标记；本次未完成响应中的工具调用未执行"
+            )
         received_bytes += len(line)
         if received_bytes > max_bytes:
             raise ModelResponseError("模型响应超过大小上限")

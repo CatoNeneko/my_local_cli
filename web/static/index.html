@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>AI 开发工作台</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/markdown.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">织</div>
+        <div><strong>AI 开发工作台</strong><span>WEB AGENT WORKSPACE</span></div>
+      </div>
+
+      <button class="new-session-button" id="newSessionButton" type="button">
+        <span class="plus-icon" aria-hidden="true">＋</span> 新建会话
+      </button>
+
+      <label class="sr-only" for="sessionSearchInput">筛选会话名称或工作区</label>
+      <input class="session-filter" id="sessionSearchInput" type="search" placeholder="搜索名称或工作区…" title="Ctrl/⌘+K 聚焦，Esc 清空" autocomplete="off">
+
+      <div class="section-label session-heading">
+        <span>最近会话</span><span class="section-count" id="sessionCount">0</span>
+      </div>
+      <nav class="session-list" id="sessionList" aria-label="会话列表">
+        <div class="loading-note">正在载入会话…</div>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="connection-line">
+          <span class="status-dot" id="apiStatusDot"></span>
+          <span id="apiStatusText">连接服务中</span>
+        </div>
+        <div class="sidebar-caption">本地工作区 · 安全会话</div>
+      </div>
+    </aside>
+
+    <section class="main-column">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="sidebarToggle" type="button" aria-label="打开会话列表">☰</button>
+        <div class="breadcrumbs">
+          <span class="breadcrumb-root">工作台</span><span class="breadcrumb-slash">/</span>
+          <strong id="currentSessionTitle">选择一个会话</strong>
+        </div>
+        <div class="topbar-actions">
+          <div class="model-badge" id="modelBadge"><span class="model-dot"></span><span>读取模型状态…</span></div>
+          <button class="icon-button" id="refreshButton" type="button" title="刷新会话和任务" aria-label="刷新">↻</button>
+        </div>
+      </header>
+
+      <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+      <div class="model-warning" id="modelWarning" role="status" hidden></div>
+
+      <div class="workspace-grid">
+        <section class="chat-panel" aria-label="聊天工作区">
+          <div class="chat-heading">
+            <div class="chat-heading-copy">
+              <h1 id="chatHeading">你好，今天想完成什么？</h1>
+              <p id="workspacePath">选择或创建一个会话，开始与 Agent 协作。</p>
+            </div>
+            <div class="stream-indicator" id="streamStatus"><span class="stream-dot"></span><span>等待任务</span></div>
+          </div>
+
+          <div class="conversation" id="conversation" aria-live="polite" aria-relevant="additions text">
+            <div class="empty-state" id="emptyState">
+              <div class="empty-orbit" aria-hidden="true"><span>✳</span></div>
+              <h2>让想法落到代码里</h2>
+              <p>描述目标、解释问题，或请 Agent 查看当前工作区。</p>
+              <div class="suggestion-row">
+                <button type="button" class="suggestion-chip" data-prompt="先熟悉这个工作区的结构">熟悉工作区</button>
+                <button type="button" class="suggestion-chip" data-prompt="帮我梳理这个项目接下来要做的事情">梳理下一步</button>
+              </div>
+            </div>
+          </div>
+
+          <form class="composer" id="chatForm">
+            <label class="sr-only" for="messageInput">发送消息</label>
+            <textarea id="messageInput" rows="1" placeholder="给 Agent 发送消息…（Enter 发送，Shift + Enter 换行）" disabled></textarea>
+            <div class="composer-bottom">
+              <span class="composer-hint" id="composerHint">选择一个会话后即可开始</span>
+              <button class="send-button" id="sendButton" type="submit" disabled><span>发送</span><span aria-hidden="true">↗</span></button>
+            </div>
+          </form>
+          <div class="privacy-note">Agent 的工具操作会显示在对话中，需要审批的更改会等待你的决定。</div>
+        </section>
+
+        <aside class="context-panel" aria-label="工作区辅助面板">
+          <div class="context-tabs" role="tablist" aria-label="工作区面板">
+            <button class="context-tab active" type="button" role="tab" aria-selected="true" data-tab="files">文件</button>
+            <button class="context-tab" type="button" role="tab" aria-selected="false" data-tab="search">知识检索</button>
+            <button class="context-tab" type="button" role="tab" aria-selected="false" data-tab="memories">长期记忆</button>
+            <button class="context-tab" type="button" role="tab" aria-selected="false" data-tab="git">Git</button>
+            <button class="context-tab" type="button" role="tab" aria-selected="false" data-tab="tasks">任务</button>
+          </div>
+          <div class="context-content" id="contextContent"></div>
+          <div class="context-footer"><span class="tiny-shield" aria-hidden="true">◇</span>内容来自当前会话工作区</div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div class="sidebar-scrim" id="sidebarScrim"></div>
+
+  <div class="modal-backdrop" id="sessionModal" hidden>
+    <section class="session-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="dialog-top">
+        <div><span class="eyebrow">新工作区</span><h2 id="modalTitle">创建会话</h2></div>
+        <button class="icon-button" id="closeSessionModal" type="button" aria-label="关闭">×</button>
+      </div>
+      <form id="createSessionForm">
+        <label for="newSessionTitle">会话名称</label>
+        <input id="newSessionTitle" name="title" maxlength="120" placeholder="例如：修复登录流程" required>
+        <label for="workspacePreset">选择已有工作区</label>
+        <select id="workspacePreset" name="workspacePreset">
+          <option value="">手动输入路径</option>
+        </select>
+        <label for="workspaceInput">工作区绝对路径</label>
+        <input id="workspaceInput" name="workspace" placeholder="/home/me/project 或 /mnt/c/Users/me/project" autocomplete="off" required>
+        <p class="field-hint">输入服务可访问的 Linux 绝对路径；Windows 工作区请使用 WSL 挂载路径，例如 /mnt/c/Users/me/project。</p>
+        <div class="dialog-error" id="createSessionError" role="alert" hidden></div>
+        <div class="dialog-actions">
+          <button class="secondary-button" id="cancelSessionCreate" type="button">取消</button>
+          <button class="primary-button" id="createSessionSubmit" type="submit">创建会话</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="gitRestoreModal" hidden>
+    <section class="git-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="gitRestoreTitle">
+      <div class="dialog-top">
+        <div><span class="eyebrow">恢复前预览</span><h2 id="gitRestoreTitle">确认恢复文件</h2></div>
+        <button class="icon-button" id="closeGitRestoreModal" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="git-restore-meta" id="gitRestorePreviewMeta"></div>
+      <pre class="git-restore-diff" id="gitRestorePreviewDiff"></pre>
+      <div class="dialog-error" id="gitRestorePreviewError" role="alert" hidden></div>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelGitRestore" type="button">取消</button>
+        <button class="danger-button" id="confirmGitRestore" type="button">允许恢复此文件</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

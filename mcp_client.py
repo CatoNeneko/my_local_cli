@@ -1,5 +1,7 @@
 """MCP 协议操作：连接参数、握手、发现工具和执行调用。"""
+
 import json
+import os
 import shlex
 from pathlib import Path
 
@@ -18,7 +20,9 @@ def prepare_server_connection(server_name):
     timeout = specification.get("timeout_seconds")
     if not isinstance(command, str) or not command or "\x00" in command:
         return {"ok": False, "error": "MCP 启动命令无效"}
-    if not isinstance(args, list) or not all(isinstance(arg, str) and "\x00" not in arg for arg in args):
+    if not isinstance(args, list) or not all(
+        isinstance(arg, str) and "\x00" not in arg for arg in args
+    ):
         return {"ok": False, "error": "MCP args 必须是字符串列表"}
     if type(timeout) is not int or not 1 <= timeout <= 60:
         return {"ok": False, "error": "MCP 超时必须是 1～60 秒的整数"}
@@ -32,16 +36,21 @@ def prepare_server_connection(server_name):
     details += "\n工作目录: " + str(PROJECT_ROOT)
     details += "\n该服务以当前用户权限运行，尚未接入沙箱。"
     environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"}
-    if server_name == 'browser':
+    if server_name == "browser":
         import permissions
+
         root = permissions.PROJECT_ROOT
-        state = root if root == PROJECT_ROOT else root / '.ai-cli'
-        environment['PLAYWRIGHT_BROWSERS_PATH'] = str(PROJECT_ROOT / '.browser-runtime')
-        environment['AI_CLI_BROWSER_ARTIFACTS'] = str(state / '.browser-artifacts')
-        details += '\n浏览器可访问网络；临时 Cookie，不加载用户浏览器档案；截图保存于私有目录。'
+        state = root if root == PROJECT_ROOT else root / ".ai-cli"
+        browser_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+        if browser_path:
+            environment["PLAYWRIGHT_BROWSERS_PATH"] = browser_path
+        elif (PROJECT_ROOT / ".browser-runtime").is_dir():
+            environment["PLAYWRIGHT_BROWSERS_PATH"] = str(PROJECT_ROOT / ".browser-runtime")
+        # wheel 安装后通常没有仓库内浏览器目录，允许 Playwright 使用用户缓存。
+        environment["AI_CLI_BROWSER_ARTIFACTS"] = str(state / ".browser-artifacts")
+        details += "\n浏览器可访问网络；临时 Cookie，不加载用户浏览器档案；截图保存于私有目录。"
     parameters = StdioServerParameters(
-        command=str(executable), args=list(args), cwd=str(PROJECT_ROOT),
-        env=environment
+        command=str(executable), args=list(args), cwd=str(PROJECT_ROOT), env=environment
     )
     return {"ok": True, "parameters": parameters, "timeout": timeout, "details": details}
 
@@ -75,7 +84,7 @@ async def call_session_tool(session, tool_name, expected_schema, arguments):
     normalized = {
         "ok": not result.isError,
         "content": [item.text for item in result.content],
-        "structured_content": result.structuredContent
+        "structured_content": result.structuredContent,
     }
     if result.isError:
         normalized["error"] = "MCP 服务报告工具执行失败"

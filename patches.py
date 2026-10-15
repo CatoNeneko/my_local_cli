@@ -11,7 +11,7 @@ def build_diff(path, old_content, new_content):
         old_content.splitlines(keepends=True),
         new_content.splitlines(keepends=True),
         fromfile="before/" + path,
-        tofile="after/" + path
+        tofile="after/" + path,
     )
     rendered = []
     for line in diff_lines:
@@ -46,7 +46,7 @@ def prepare_edit(path, new_content):
         "original_bytes": original_bytes,
         "new_bytes": new_bytes,
         "changed": original_bytes != new_bytes,
-        "diff": build_diff(path, old_content, new_content)
+        "diff": build_diff(path, old_content, new_content),
     }
 
 
@@ -73,7 +73,9 @@ def apply_prepared_edit(prepared):
             return {"ok": False, "error": "文件在审查期间已变化，请重新生成修改"}
 
         original_mode = target.stat().st_mode
-        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".cli-edit-", delete=False) as file:
+        with tempfile.NamedTemporaryFile(
+            dir=target.parent, prefix=".cli-edit-", delete=False
+        ) as file:
             temporary_path = Path(file.name)
             file.write(prepared["new_bytes"])
             file.flush()
@@ -102,4 +104,5 @@ def apply_prepared_edit(prepared):
 def edit_file(path, new_content):
     # 保留旧接口，但也必须经过统一执行入口。
     from tool_runtime import execute_tool
+
     return execute_tool("edit_file", {"path": path, "new_content": new_content})

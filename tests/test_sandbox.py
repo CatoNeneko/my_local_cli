@@ -16,7 +16,6 @@ import tool_runtime
 def isolated_project(tmp_path, monkeypatch):
     monkeypatch.setattr(permissions, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sandbox, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(sandbox, "RUNTIME_ENV", Path(sys.prefix))
     monkeypatch.setattr(permissions, "confirm_tool", lambda *args: True)
     monkeypatch.setattr(tool_runtime, "record_tool_event", Mock())
     return tmp_path
@@ -53,36 +52,52 @@ def test_command_is_fixed_argv(isolated_project):
     assert "--unshare-net" in command
     assert "--clearenv" in command
     assert command[-1] == "/workspace/test_a;echo.py"
-    assert command[command.index("--") + 1:] == [
-        "/runtime/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
-        "--", "/workspace/test_a;echo.py"
+    limited = command[command.index("--") + 1 :]
+    assert limited[:3] == ["/usr/bin/python3", "-I", "-c"]
+    assert limited[3] == sandbox.LIMIT_BOOTSTRAP
+    assert limited[5:] == [
+        "/runtime/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--",
+        "/workspace/test_a;echo.py",
     ]
     assert "--ro-bind" in command
-    assert not any(item in command for item in ("sh", "bash", "-c"))
+    assert not any(item in command for item in ("sh", "bash"))
 
 
 def test_output_and_time_bounds():
     result = sandbox.collect_output(
-        [sys.executable, "-c", "import os; os.write(1, b'x' * 100000); import time; time.sleep(10)"],
-        3, 1024
+        [
+            sys.executable,
+            "-c",
+            "import os; os.write(1, b'x' * 100000); import time; time.sleep(10)",
+        ],
+        3,
+        1024,
     )
     assert result["output_limit_exceeded"]
     assert len(result["output"]) == 1024
-    result = sandbox.collect_output([sys.executable, "-c", "import time; time.sleep(10)"], 0.2, 1024)
+    result = sandbox.collect_output(
+        [sys.executable, "-c", "import time; time.sleep(10)"], 0.2, 1024
+    )
     assert result["timed_out"]
     assert result["exit_code"] != 0
 
 
 integration = pytest.mark.skipif(
     os.environ.get("CLI_SANDBOX_INTEGRATION") != "1",
-    reason="真实 bubblewrap 集成测试需显式设置 CLI_SANDBOX_INTEGRATION=1"
+    reason="真实 bubblewrap 集成测试需显式设置 CLI_SANDBOX_INTEGRATION=1",
 )
 
 
 @integration
 def test_real_sandbox_boundaries(isolated_project):
     file = isolated_project / "test_boundaries.py"
-    source = '''import os
+    source = """import os
 import socket
 from pathlib import Path
 import pytest
@@ -112,7 +127,7 @@ def test_boundaries():
         connection.settimeout(1)
         with pytest.raises(OSError):
             connection.connect(("127.0.0.1", 11434))
-'''
+"""
     file.write_text(source)
     (isolated_project / "history.jsonl").write_text("private history")
     (isolated_project / "sub").mkdir()
@@ -137,7 +152,9 @@ def test_real_test_failure(isolated_project):
 
 @integration
 def test_real_timeout(isolated_project, monkeypatch):
-    (isolated_project / "test_slow.py").write_text("import time\ndef test_slow():\n    time.sleep(20)\n")
+    (isolated_project / "test_slow.py").write_text(
+        "import time\ndef test_slow():\n    time.sleep(20)\n"
+    )
     monkeypatch.setitem(sandbox.sandbox_config, "timeout_seconds", 1)
     result = sandbox.run_tests("test_slow.py")
     assert not result["ok"] and result["timed_out"]
@@ -145,7 +162,9 @@ def test_real_timeout(isolated_project, monkeypatch):
 
 @integration
 def test_real_output_limit(isolated_project, monkeypatch):
-    (isolated_project / "test_output.py").write_text("import os\ndef test_output():\n    os.write(1, b'x' * 200000)\n    assert False\n")
+    (isolated_project / "test_output.py").write_text(
+        "import os\ndef test_output():\n    os.write(1, b'x' * 200000)\n    assert False\n"
+    )
     monkeypatch.setitem(sandbox.sandbox_config, "max_output_bytes", 1024)
     result = sandbox.run_tests("test_output.py")
     assert not result["ok"] and result["output_limit_exceeded"]

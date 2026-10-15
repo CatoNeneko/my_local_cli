@@ -18,7 +18,6 @@ import tools
 def project(tmp_path, monkeypatch):
     monkeypatch.setattr(permissions, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sandbox, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(sandbox, "RUNTIME_ENV", Path(sys.prefix))
     monkeypatch.setattr(tool_runtime, "record_tool_event", Mock())
     monkeypatch.setattr(permissions, "confirm_tool", Mock(return_value=True))
     (tmp_path / "sample.py").write_text("value = 1\n", encoding="utf-8")
@@ -28,6 +27,8 @@ def project(tmp_path, monkeypatch):
 def arguments_for(name, path):
     if name in ("search_file", "search_project"):
         return {"path": path, "keyword": "value"}
+    if name == "apply_changes":
+        return {"path": path, "changes": [{"path": "new.txt", "content": "x"}]}
     if name in ("edit_file", "create_skill", "create_file"):
         return {"path": path, "new_content": "value = 2\n"}
     if name == "start_pty":
@@ -37,7 +38,14 @@ def arguments_for(name, path):
     return {"path": path}
 
 
-@pytest.mark.parametrize("name", [name for name, spec in tool_registry.TOOL_REGISTRY.items() if spec.get("kind") != "task"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name, spec in tool_registry.TOOL_REGISTRY.items()
+        if "path" in spec["parameters"]["properties"]
+    ],
+)
 def test_every_tool_rejects_escape_before_prompt(project, name):
     result = tools.execute_tool(name, arguments_for(name, "../outside.py"))
     assert not result["ok"] and "项目目录之外" in result["error"]
@@ -45,7 +53,14 @@ def test_every_tool_rejects_escape_before_prompt(project, name):
     tool_runtime.record_tool_event.assert_called_once()
 
 
-@pytest.mark.parametrize("name", [name for name, spec in tool_registry.TOOL_REGISTRY.items() if spec.get("kind") != "task"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name, spec in tool_registry.TOOL_REGISTRY.items()
+        if "path" in spec["parameters"]["properties"]
+    ],
+)
 def test_every_tool_rejects_private_paths(project, name):
     result = tools.execute_tool(name, arguments_for(name, ".git/private.py"))
     assert not result["ok"] and "私有记录" in result["error"]
@@ -96,6 +111,7 @@ def test_edit_diff_precedes_one_confirmation_and_refusal_preserves_file(project,
         output = capsys.readouterr().out
         assert "-value = 1" in output and "+value = 2" in output
         return False
+
     permissions.confirm_tool.side_effect = refuse
     result = tools.execute_tool("edit_file", arguments_for("edit_file", "sample.py"))
     assert not result["ok"]
@@ -108,6 +124,7 @@ def test_direct_edit_still_uses_gate_and_conflict_protection(project):
     def conflict(*args):
         (project / "sample.py").write_text("user changed\n")
         return True
+
     permissions.confirm_tool.side_effect = conflict
     assert not patches.edit_file("sample.py", "value = 2\n")["ok"]
     assert (project / "sample.py").read_text() == "user changed\n"
@@ -124,20 +141,27 @@ def test_accepted_edit_writes_once_and_logs_once(project):
 
 def test_path_retargeted_during_confirmation_is_rejected(project):
     (project / "alias.py").symlink_to(project / "sample.py")
+
     def change(*args):
         (project / "alias.py").unlink()
         (project / "alias.py").symlink_to(project.parent / "outside.py")
         return True
+
     permissions.confirm_tool.side_effect = change
-    assert not tools.execute_tool("edit_file", {"path": "alias.py", "new_content": "value = 2\n"})["ok"]
+    assert not tools.execute_tool("edit_file", {"path": "alias.py", "new_content": "value = 2\n"})[
+        "ok"
+    ]
 
 
 def test_invalid_parameters_do_not_prompt(project):
     for name, args in [
-        ("read_file", {}), ("read_file", {"path": None}),
+        ("read_file", {}),
+        ("read_file", {"path": None}),
         ("search_file", {"path": "sample.py", "keyword": ""}),
-        ("edit_file", {"path": "sample.py"}), ("run_tests", {"path": 3}),
-        ("read_file", []), ("unknown", {})
+        ("edit_file", {"path": "sample.py"}),
+        ("run_tests", {"path": 3}),
+        ("read_file", []),
+        ("unknown", {}),
     ]:
         assert not tools.execute_tool(name, args)["ok"]
     permissions.confirm_tool.assert_not_called()
@@ -165,9 +189,18 @@ def test_directory_listing_hides_private_entries(project):
 
 
 def test_test_execution_confirms_once_after_preflight(project, monkeypatch):
-    monkeypatch.setattr(sandbox.shutil, "which", lambda name: sys.executable if name == "bwrap" else None)
+    monkeypatch.setattr(
+        sandbox.shutil, "which", lambda name: sys.executable if name == "bwrap" else None
+    )
     (project / "test_example.py").write_text("def test_example(): pass\n")
-    runner = Mock(return_value={"exit_code": 0, "output": "passed", "timed_out": False, "output_limit_exceeded": False})
+    runner = Mock(
+        return_value={
+            "exit_code": 0,
+            "output": "passed",
+            "timed_out": False,
+            "output_limit_exceeded": False,
+        }
+    )
     monkeypatch.setattr(sandbox, "collect_output", runner)
     assert sandbox.run_tests("test_example.py")["ok"]
     runner.assert_called_once()
@@ -176,7 +209,7 @@ def test_test_execution_confirms_once_after_preflight(project, monkeypatch):
 
 
 def test_registry_drives_model_definitions(project):
-    definitions = tools.get_tool_definitions()
+    definitions = tool_registry.get_tool_definitions()
     assert {d["function"]["name"] for d in definitions} == set(tool_registry.TOOL_REGISTRY)
     definitions[0]["function"]["parameters"]["properties"].clear()
     assert tool_registry.TOOL_REGISTRY["read_file"]["parameters"]["properties"]

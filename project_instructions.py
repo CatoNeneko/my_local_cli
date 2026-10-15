@@ -1,4 +1,5 @@
 """启动时加载根目录项目规则；请求时注入，不写入聊天历史。"""
+
 import permissions
 from skills import get_skill_messages
 
@@ -27,7 +28,9 @@ def load_project_instructions():
             raise ValueError("AGENTS.md 超过 64 KiB 上限")
         content = raw.decode("utf-8-sig").strip()
         if content:
-            instruction_state.update(status="loaded", content=content, message="已加载项目根目录 AGENTS.md")
+            instruction_state.update(
+                status="loaded", content=content, message="已加载项目根目录 AGENTS.md"
+            )
         else:
             instruction_state.update(status="empty", message="AGENTS.md 为空，未加载项目规则")
     except FileNotFoundError:
@@ -41,8 +44,10 @@ def build_model_messages(messages):
     """返回用于请求的新列表，不向原聊天列表追加系统规则。"""
     system_messages = [{"role": "system", "content": BASE_INSTRUCTIONS}]
     if instruction_state["content"]:
-        system_messages.append({
-            "role": "system",
-            "content": "项目根目录 AGENTS.md 开发规则：\n" + instruction_state["content"]
-        })
+        system_messages.append(
+            {
+                "role": "system",
+                "content": "项目根目录 AGENTS.md 开发规则：\n" + instruction_state["content"],
+            }
+        )
     return system_messages + get_skill_messages() + messages

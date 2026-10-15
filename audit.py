@@ -11,14 +11,14 @@ def record_tool_event(name, result):
         "time": datetime.now(timezone.utc).isoformat(),
         "tool": name,
         "ok": result["ok"],
-        "error": result.get("error", "")
+        "error": result.get("error", ""),
     }
     if "approval" in result:
         event["approval"] = result["approval"]
     if "hook_warning" in result:
         event["hook_warning"] = result["hook_warning"]
-    if result.get('cancelled'):
-        event['cancelled'] = True
+    if result.get("cancelled"):
+        event["cancelled"] = True
 
     try:
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

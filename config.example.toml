@@ -1,0 +1,16 @@
+# 复制到 ~/.config/local-ai-cli/config.toml，或通过 --config 显式指定。
+# 密钥只能设置在 api_key_env 指定的环境变量中。
+[model]
+provider = "openai"
+name = "your-model-id"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+stream = true
+
+[runtime]
+approval_mode = "manual"
+mcp_enabled = false
+
+[web]
+max_workers = 2
+run_timeout = 600
