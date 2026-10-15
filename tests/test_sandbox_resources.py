@@ -89,10 +89,24 @@ def test_pty_and_tests_share_resource_bootstrap(tmp_path, monkeypatch):
     from harness.tasks.runtime import prepare_pty
     import permissions
 
-    monkeypatch.setattr(permissions, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(sandbox, "PROJECT_ROOT", tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    runtime = tmp_path / "runtime"
+    (runtime / "bin").mkdir(parents=True)
+    (runtime / "bin/python").touch()
+    fake_bwrap = str(tmp_path / "fake-bwrap")
+
+    monkeypatch.setattr(permissions, "PROJECT_ROOT", project)
+    monkeypatch.setattr(sandbox, "PROJECT_ROOT", project)
+    monkeypatch.setattr(sandbox, "runtime_environment", lambda value=None: runtime)
+    monkeypatch.setattr(
+        sandbox.shutil,
+        "which",
+        lambda executable: fake_bwrap if executable == "bwrap" else None,
+    )
     prepared = prepare_pty(".", ["python", "-c", "print(1)"])
     assert prepared["ok"], prepared
     command = prepared["command"]
+    assert command[0] == fake_bwrap
     assert command.count(sandbox.LIMIT_BOOTSTRAP) == 1
     assert prepared["resource_limits"] == sandbox.resource_limits()

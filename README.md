@@ -146,7 +146,7 @@ Web 地址为 `http://127.0.0.1:8000`。未配置模型时仍可管理会话、�
 
 ## 验证
 
-0.2.0 最新本机沙箱回归：**508 项通过、33 项跳过**。跳过项没有计为通过，结果也不代表所有操作系统或模型服务均已验证。
+0.2.0 最新本机沙箱回归：**509 项通过、33 项跳过**。跳过项没有计为通过，结果也不代表所有操作系统或模型服务均已验证。
 
 额外通过的固定协议夹具验收包括：
 
@@ -158,7 +158,7 @@ Web 地址为 `http://127.0.0.1:8000`。未配置模型时仍可管理会话、�
 
 这些验收实际执行客户端、进程、文件操作和测试沙箱，模型输出使用本机固定协议夹具。
 
-另完成 DeepSeek 官方 API 的真实联测：`/models` 返回 `deepseek-flash` 与 `deepseek-v4-pro`，本轮选用 `deepseek-flash`，最新七项工作流验收全部通过。此结果只验证指定 DeepSeek 模型和本轮覆盖的流程；其他 provider、远程语义 Embedding 与 GitHub CI 仍待验证。详细范围见 [DeepSeek 接入与实测记录](docs/DEEPSEEK.md)。
+另完成 DeepSeek 官方 API 的真实联测：`/models` 返回 `deepseek-flash` 与 `deepseek-v4-pro`，本轮选用 `deepseek-flash`，最新七项工作流验收全部通过。此结果只验证指定 DeepSeek 模型和本轮覆盖的流程；其他 provider 与远程语义 Embedding 仍待验证。详细范围见 [DeepSeek 接入与实测记录](docs/DEEPSEEK.md)，远端检查以 [GitHub Actions](https://github.com/CatoNeneko/my_local_cli/actions) 对应提交为准。
 
 开发检查：
 

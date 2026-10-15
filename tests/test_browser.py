@@ -50,18 +50,34 @@ def test_invalid_url_never_starts_browser():
     client._start.assert_not_called()
 
 
-def test_screenshot_directory_is_bound_to_workspace_and_runtime_is_private(tmp_path, monkeypatch):
+@pytest.mark.parametrize("runtime_exists", [False, True])
+def test_screenshot_directory_is_bound_to_workspace_and_runtime_is_private(
+    tmp_path, monkeypatch, runtime_exists
+):
+    assistant = tmp_path / "assistant"
+    assistant.mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    runtime = assistant / ".browser-runtime"
+    if runtime_exists:
+        runtime.mkdir()
+
+    monkeypatch.setattr(mcp_client, "PROJECT_ROOT", assistant)
     monkeypatch.setitem(
         mcp_client.mcp_config,
         "browser",
         {**mcp_client.mcp_config["browser"], "command": sys.executable},
     )
-    with use_workspace(tmp_path):
+    monkeypatch.delenv("PLAYWRIGHT_BROWSERS_PATH", raising=False)
+    with use_workspace(project):
         spec = mcp_client.prepare_server_connection("browser")
         assert spec["ok"]
         env = spec["parameters"].env
-        assert env["AI_CLI_BROWSER_ARTIFACTS"] == str(tmp_path / ".ai-cli/.browser-artifacts")
-        assert env["PLAYWRIGHT_BROWSERS_PATH"] == str(APP_ROOT / ".browser-runtime")
+        assert env["AI_CLI_BROWSER_ARTIFACTS"] == str(project / ".ai-cli/.browser-artifacts")
+        if runtime_exists:
+            assert env["PLAYWRIGHT_BROWSERS_PATH"] == str(runtime)
+        else:
+            assert "PLAYWRIGHT_BROWSERS_PATH" not in env
         assert not permissions.resolve_project_path(".browser-runtime/secret")["ok"]
         assert not permissions.resolve_project_path(".browser-artifacts/screenshot.png")["ok"]
 

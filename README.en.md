@@ -148,7 +148,7 @@ Read the calculation module and existing tests, find the addition bug, show the 
 
 ## Validation
 
-The latest local sandbox regression for version 0.2.0 reports **508 passed, 33 skipped**. Skipped tests were not counted as passed, and this result does not mean that all operating systems or model services have been validated.
+The latest local sandbox regression for version 0.2.0 reports **509 passed, 33 skipped**. Skipped tests were not counted as passed, and this result does not mean that all operating systems or model services have been validated.
 
 Additional acceptance checks passed using fixed protocol fixtures:
 
@@ -160,7 +160,7 @@ Additional acceptance checks passed using fixed protocol fixtures:
 
 These checks actually execute the client, processes, file operations, and test sandbox; model output comes from fixed protocol fixtures on the local machine.
 
-A separate live integration run against the official DeepSeek API found `deepseek-flash` and `deepseek-v4-pro` at `/models`, and selected `deepseek-flash`. All seven latest workflow acceptance checks passed. This verifies the specified DeepSeek model and the covered flows only; compatibility with other providers, remote semantic embeddings, and GitHub CI remain unverified. See the [DeepSeek integration and live acceptance record](docs/DEEPSEEK.md) for details.
+A separate live integration run against the official DeepSeek API found `deepseek-flash` and `deepseek-v4-pro` at `/models`, and selected `deepseek-flash`. All seven latest workflow acceptance checks passed. This verifies the specified DeepSeek model and the covered flows only; compatibility with other providers and remote semantic embeddings remains unverified. See the [DeepSeek integration and live acceptance record](docs/DEEPSEEK.md) for details and [GitHub Actions](https://github.com/CatoNeneko/my_local_cli/actions) for remote checks on each commit.
 
 Development checks:
 

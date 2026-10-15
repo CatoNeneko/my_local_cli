@@ -157,4 +157,4 @@ Agent 回复中的标题、列表、粗体、行内代码和围栏代码块由 `
 
 先读 `cli.py` 如何把显式参数交给 `harness/configuration.py`，再看 `web/settings.py` 如何复用同一个不可变配置。随后读 `tool_registry.py` 的参数声明、`tool_runtime.py` 的准备与审批顺序，以及 `harness/files/changesets.py` 的复核和补偿。最后沿 `subagent_worker.py` 看任务审批 diff 如何保留，沿 `web/static/markdown.js` 和 `web/static/app.js` 看不可信文本如何呈现、会话状态如何隔离。
 
-`tests/test_configuration.py`、`tests/test_distribution.py`、变更集与诊断测试表达相应行为的回归约束；浏览器验收脚本还包括 `scripts/ui_readability_acceptance.py`。当前完整沙箱回归为 508 passed、33 skipped，新增的协议和联测报告测试不请求模型。DeepSeek 官方 JSON/SSE、编码测试、审批、PTY、子代理和 Web 已完成独立真实联测；其他模型与语义 Embedding 仍待验证。测试代码、doctor 和实际执行验收承担不同职责；只有实际运行的结果才能作为该环境的验收证据。
+`tests/test_configuration.py`、`tests/test_distribution.py`、变更集与诊断测试表达相应行为的回归约束；浏览器验收脚本还包括 `scripts/ui_readability_acceptance.py`。当前完整沙箱回归为 509 passed、33 skipped，新增的协议和联测报告测试不请求模型。DeepSeek 官方 JSON/SSE、编码测试、审批、PTY、子代理和 Web 已完成独立真实联测；其他模型与语义 Embedding 仍待验证。测试代码、doctor 和实际执行验收承担不同职责；只有实际运行的结果才能作为该环境的验收证据。

@@ -51,13 +51,13 @@ CLI 和 Web 的密钥由 `DEEPSEEK_API_KEY` 环境变量提供。下述独立联
 
 实测发现 OpenAI 兼容适配器此前会丢弃 `reasoning_content`。现已在消息规范化、SSE 收集和 assistant wire 消息透传中保留该字段；CLI 最终消息回调与 Web 完成阶段会保存它，上下文预算会计入该字段，两个界面仍只显示消息正文。它只是可选协议元数据，不是授权或工具执行指令。修复前的简单 JSON/SSE 往返也成功，因此不能声称本轮观察到了由该问题引起的 HTTP 400。
 
-新增 20 个协议字段回归用例、9 个验收报告及退出状态用例；本轮完整沙箱回归为 **508 passed、33 skipped**，记录见 `artifacts/live/regression.txt`。
+新增 20 个协议字段回归用例、9 个验收报告及退出状态用例；本轮完整沙箱回归为 **509 passed、33 skipped**，记录见 `artifacts/live/regression.txt`。
 
 ## 用量与验证边界
 
 本轮 18 个父进程内请求具有实测 usage 字段，均返回 HTTP 200，小计 17,993 输入、1,830 输出、19,823 total tokens。这只是经过记录器的请求小计，早期预探针不包含在内；worker 子进程的 usage 缺失保持为 `null`。缺失不能按零计算，因此本文不报告整个联测的总 token 数或总费用。
 
-默认审批仍为人工模式，MCP 默认关闭，本地推理未启用。远程语义 Embedding 尚未实测，其他 provider 兼容性尚未全部验证，GitHub CI 本轮未执行。固定协议夹具验收和本页记录的真实 API 调用是两类独立证据，夹具结果不计作真实模型调用。
+默认审批仍为人工模式，MCP 默认关闭，本地推理未启用。远程语义 Embedding 尚未实测，其他 provider 兼容性尚未全部验证。后续发布的 GitHub CI 结果另见 [验收记录](RELEASE_VALIDATION.md)。固定协议夹具验收和本页记录的真实 API 调用是两类独立证据，夹具结果不计作真实模型调用。
 
 ## 官方资料
 
